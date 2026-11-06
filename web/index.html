@@ -368,6 +368,9 @@ select { min-height: 48px; padding: 0 12px; border-radius: 12px; border: 1px sol
       <select id="petSize"><option value="xsmall">아주 작게</option><option value="small">작게</option><option value="medium">보통</option><option value="large">크게</option></select>
     </label>
     <label class="check-row" for="stillMode"><input type="checkbox" id="stillMode"> 가만히 있기 (펫이 돌아다니지 않아요)</label>
+    <label class="field" for="langSel">언어 / Language
+      <select id="langSel"><option value="ko">한국어</option><option value="en">English</option></select>
+    </label>
     <div class="row"><button type="button" class="btn" id="setCancel">닫기</button><button type="submit" class="btn primary">저장</button></div>
     <p class="msg" id="setMsg"></p>
     <div class="or">다른 기기에서 이어 쓰기</div>
@@ -637,10 +640,537 @@ select { min-height: 48px; padding: 0 12px; border-radius: 12px; border: 1px sol
 <script>
 (() => {
 'use strict';
+/* i18n-begin — Korean is the source language; English strings are looked up by the Korean text */
+const LANG = (() => {
+  const q = (location.search.match(/[?&]lang=(ko|en)\b/) || [])[1];
+  let l = null; try { l = localStorage.getItem('lang'); } catch (e) {}
+  if (q) { l = q; try { localStorage.setItem('lang', q); } catch (e) {} }
+  return l === 'ko' || l === 'en' ? l : (/^ko/i.test(navigator.language || '') ? 'ko' : 'en');
+})();
+const EN = LANG === 'en';
+document.documentElement.lang = LANG;
+const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
+const ORD = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/* "11월 5일" / "Nov 5" */
+function md(d) { return EN ? `${MONTHS[d.getMonth()]} ${d.getDate()}` : `${d.getMonth() + 1}월 ${d.getDate()}일`; }
+/* feature-menu icons that are Korean words */
+/* "짝꿍방: OO이 뽀뽀했어요" verbs (some Korean phrases are reused elsewhere with other meanings) */
+const RECV_EN = { kiss: 'sent a kiss', poke: 'poked you', msg: 'sent a message', doodle: 'sent a note', poop: 'wants to poop together', lunch: 'wants to get lunch' };
+const ICON_EN = { '콕': '☝', '말풍': '❞', '똥': '∴', '밥': '◒', '일정': '▦', '말': '♪', '정': '‖', '집': '⌂' };
+const iconTx = s => EN ? (ICON_EN[s] || s) : s;
+const EN_DICT = {
+  /* ---- static page ---- */
+  '우리 펫들이 사는 방': 'The room where our pets live',
+  '처음 만난 날 정하기': 'Set the day we met',
+  '방 고르기': 'Pick a room',
+  '하트 코인': 'Heart coins',
+  '설정': 'Settings',
+  '뽀뽀 보내기': 'Send a kiss',
+  '콕 찌르기': 'Poke',
+  '메시지': 'Message',
+  '낙서 쪽지': 'Doodle',
+  '같이 똥 싸기': 'Poop together',
+  '더보기': 'More',
+  '점심 뭐 먹지?': "What's for lunch?",
+  '오늘의 운세': "Today's fortune",
+  '바탕화면에 띄우기': 'Pets on desktop',
+  '같이 집중하기': 'Focus together',
+  '할 일 · 버킷리스트': 'To-dos · Bucket list',
+  '일정 · 기념일': 'Plans · Anniversaries',
+  '모임방': 'Group rooms',
+  '방 꾸미기': 'Decorate room',
+  '캐릭터 크기': 'Pet size',
+  'PC에 설치하기': 'Install on PC',
+  '펫이 알려주는 둘러보기': 'Tour with your pet',
+  '사용법': 'How to use',
+  '잠시 접기': 'Fold away for now',
+  '닫기': 'Close',
+  '잠깐만요': 'One moment',
+  'UriPet을 깨우는 중이에요…': 'Waking up UriPet…',
+  '내 펫 고르기': 'Pick your pet',
+  '상대 화면에는 이 펫이 나로 보여요. 나중에 바꿀 수 있어요.': "This pet is you on your partner's screen. You can change it later.",
+  '펫을 고르고 이름을 쓴 다음, 짝꿍과 코드로 연결하면 시작이에요.': 'Pick a pet, enter your name, then connect with your partner using a code.',
+  '펫 고르기': 'Pick a pet',
+  '내 이름 (상대에게 보이는 이름)': 'Your name (shown to your partner)',
+  '예: 안녕': 'e.g. Sunny',
+  '다음': 'Next',
+  '이미 쓰던 사람이라면': 'Used UriPet before?',
+  '이어 쓰기 코드로 예전 기록 불러오기': 'Restore with a transfer code',
+  '이어 쓰기 코드 (8자리)': 'Transfer code (8 characters)',
+  '불러오기': 'Restore',
+  '설정(⋯) 맨 아래에 있는 내 이어 쓰기 코드를 넣으면 이름 · 펫 · 짝 · 메시지가 그대로 돌아와요.': 'Enter the transfer code from the bottom of Settings (⋯) to get your name, pet, partner and messages back.',
+  '짝 맺기': 'Pair up',
+  '둘 중 한 명만': 'Only one of you',
+  '코드를 만들면 돼요.': 'needs to make a code.',
+  '다른 한 명은 받은 코드를 아래에 넣기만 하면 바로 연결돼요.': 'The other just enters it below to connect.',
+  '코드를 만드는 사람': 'If you make the code',
+  '초대 코드 만들기': 'Make an invite code',
+  '이 코드를 짝꿍에게 보내 주세요. 짝꿍은 코드를 만들지 말고': "Send this code to your partner. They don't make a code —",
+  '아래 칸에 이 코드만 넣으면': 'they just enter it below',
+  '돼요.': '.',
+  '코드 복사': 'Copy code',
+  '상대를 기다리는 중이에요…': 'Waiting for your partner…',
+  '또는': 'or',
+  '코드를 받은 사람 (만들 필요 없어요)': 'If you got a code (no need to make one)',
+  '연결하기': 'Connect',
+  '친구들과 쓰려면': 'With friends?',
+  '모임방 만들기 · 들어가기 (최대 8명)': 'Create or join a group room (up to 8)',
+  '연결하지 못했어요': "Couldn't connect",
+  '다시 시도': 'Try again',
+  '뽀뽀하기': 'Kiss',
+  '머리 위로 올라가기': 'Climb on their head',
+  '내 펫 바꾸기': 'Change your pet',
+  '내 이름': 'Your name',
+  '처음 만난 날 (둘이 같이 써요)': 'The day we met (shared)',
+  '펫이 말하는 빈도': 'How often pets talk',
+  '조용히 (말 안 함)': 'Quiet (no talking)',
+  '조용히': 'Quiet',
+  '가끔': 'Sometimes',
+  '보통': 'Normal',
+  '자주': 'Often',
+  '수다쟁이': 'Chatterbox',
+  '펫 크기': 'Pet size',
+  '아주 작게': 'Tiny',
+  '작게': 'Small',
+  '크게': 'Large',
+  '가만히 있기 (펫이 돌아다니지 않아요)': "Stay still (pets won't wander)",
+  '언어 / Language': 'Language',
+  '저장': 'Save',
+  '다른 기기에서 이어 쓰기': 'Continue on another device',
+  '휴대폰 · 아이패드 · PC 앱, 또는 홈 화면 아이콘으로 새로 열었을 때 이 코드를 넣으면 지금 기록을 그대로 이어 써요.': 'Opening UriPet fresh on a phone, iPad, the PC app or a home-screen icon? Enter this code to pick up right where you left off.',
+  '짝꿍에게는 알려 주지 마세요.': "Don't share it with your partner.",
+  '복사': 'Copy',
+  '짝': 'Partner',
+  '짝 끊기': 'Unpair',
+  '정말 끊을까요? D-day와 주고받은 기록이 모두 지워지고, 다시 초대 코드로 연결해야 해요.': "Really unpair? Your D-day and everything you shared will be erased, and you'll need a new invite code to reconnect.",
+  '아니요': 'No',
+  '끊기': 'Unpair',
+  '처음 만난 날': 'The day we met',
+  '만난 날을 1일로 세요. 100일, 200일, 1주년마다 펫들이 축하해요. 상대 화면에도 같은 날짜가 보여요.': 'The day you met counts as day 1. Your pets celebrate every 100 days and every anniversary. Your partner sees the same date.',
+  '날짜': 'Date',
+  '종류': 'Type',
+  '다시 뽑기': 'Pick again',
+  '짝꿍한테 같이 먹자고 하기': 'Ask my partner',
+  '행운의 색': 'Lucky color',
+  '행운의 숫자': 'Lucky number',
+  '오늘 우리 온도': 'Our warmth',
+  '저장한 카드': 'Saved cards',
+  '카드 저장': 'Save card',
+  '그려서 보내면 짝꿍 펫이 쪽지를 들고 와요.': "Draw something and your partner's pet will bring it over.",
+  '그림판': 'Drawing pad',
+  '검정': 'Black', '분홍': 'Pink', '파랑': 'Blue', '초록': 'Green',
+  '지우개': 'Eraser',
+  '다 지우기': 'Clear',
+  '보내기': 'Send',
+  '쪽지가 왔어요': 'You got a note',
+  '받은 낙서 쪽지': 'Received doodle',
+  '다음 쪽지': 'Next note',
+  'UriPet 사용법': 'How to use UriPet',
+  '내 펫과 짝꿍 펫이 화면 아래를 같이 돌아다녀요. 이렇게 놀아 보세요.': "Your pet and your partner's pet roam the bottom of the screen together. Try these:",
+  '두 펫이 다가가서 쪽! 짝꿍 화면에서도 똑같이 해요.': "The two pets walk up and smooch! Same on your partner's screen.",
+  '짝꿍에게 한마디를 보내면 짝꿍 펫이 말풍선으로 전해 줘요. 지난 메시지도 모아 볼 수 있어요.': "Send your partner a line and their pet shows it in a speech bubble. Past messages are kept too.",
+  '짝꿍 화면에 "OO이 보고 싶대!" 말풍선이 떠요.': 'A "___ misses you!" bubble pops up on your partner\'s screen.',
+  '그림을 그려 보내면 짝꿍 펫이 쪽지를 들고 있어요. 펫을 누르면 펼쳐져요.': "Send a drawing and your partner's pet holds the note. Tap the pet to open it.",
+  '하나가 싸면 다른 하나도 따라 해요. 바닥의 똥을 누르면 치워져요.': 'When one goes, the other follows. Tap a poop on the floor to clean it up.',
+  '끌어서 옮기기 · 던지기': 'Drag · Throw',
+  '펫을 손가락(마우스)으로 집어 옮겨요. 휙 던지면 날아가요. 짝꿍 화면에서도 같이 움직여요.': "Pick up a pet with your finger (or mouse) and move it. Flick to throw it. It moves on your partner's screen too.",
+  '내 펫을 집어서 짝꿍 펫 머리 위에 놓거나, 캐릭터를 두 번 눌러 "짝꿍 머리 위로 올라가기"를 누르세요. 짝꿍 화면에서도 같이 올라가요.': 'Drop your pet on your partner\'s pet, or double-tap a pet and choose "Climb on partner\'s head". It happens on their screen too.',
+  '더보기 → 방 꾸미기에서 캣타워 · 쿠션 · 책장 같은 가구를 놓아요. 둘이 같이 쓰는 방이라 짝꿍 화면에도 보이고, 펫들이 올라가서 놀아요.': "Use More → Decorate room to place furniture like a cat tower, cushion or bookshelf. It's a shared room, so your partner sees it too, and the pets climb and play on it.",
+  '모임방 (최대 8명)': 'Group rooms (up to 8)',
+  '위쪽 가운데 이름을 누르거나 더보기 → 모임방에서 모임을 만들고 코드를 친구들에게 알려 주세요. 모두의 펫이 한 화면에 모이고, 단체 메시지 · 낙서 · 콕 · 던지기 · 머리 위 · 다 같이 똥 · 점심 투표 · 모임방 꾸미기를 할 수 있어요.': "Tap the name at the top or More → Group rooms, create a group and share the code with friends. Everyone's pets gather on one screen for group chat, doodles, pokes, throwing, head rides, group poops, lunch votes and decorating.",
+  '더보기 → 같이 집중하기로 15·25·50분 타이머를 켜면 펫들이 책상에 앉아요. 짝꿍이나 친구가 "나도 같이"를 누르면 함께 집중하고, 끝까지 하면 하트를 받아요.': 'More → Focus together starts a 15/25/50 min timer and the pets sit at their desks. When your partner or friends tap "Join", you focus together, and finishing earns hearts.',
+  '둘이(또는 모임이) 같이 쓰는 목록이에요. 누가 체크하면 모두의 펫이 축하해요.': 'A list you share (as a couple or group). When someone checks something off, all the pets celebrate.',
+  '데이트, 생일, 기념일을 적어 두면 하루 전과 당일에 펫이 알려 줘요.': 'Add dates, birthdays and anniversaries, and your pet reminds you the day before and on the day.',
+  '하루 한 번 앱을 열면 출석 하트 10개! 켜 둔 시간이 1시간 쌓일 때마다 5개씩 더 받아요 (하루 최대 25개). 오른쪽 위 하트를 누르면 상점이 열려요.': 'Open the app once a day for 10 check-in hearts! Get 5 more for every hour it stays open (up to 25 a day). Tap the heart at the top right to open the shop.',
+  '쓰다듬기': 'Petting',
+  '내 펫 머리를 누르면 좋아하고, 몸을 누르면 간지러워해요.': "Tap your pet's head and it's happy; tap its body and it giggles.",
+  '짝꿍 펫 누르기': "Tapping your partner's pet",
+  '뽀뽀 · 콕 찌르기 메뉴가 나와요.': 'Opens a Kiss · Poke menu.',
+  '점심 메뉴 추천, 오늘의 운세, 바탕화면에 띄우기, PC 설치, 사용법.': "Lunch ideas, today's fortune, pets on desktop, PC install, how to use.",
+  '왼쪽 위 D+숫자': 'D+number at top left',
+  '처음 만난 날을 정하면 둘 다 같은 D-day가 보여요.': 'Set the day you met and you both see the same D-day.',
+  '오른쪽 위 ⋯': '⋯ at top right',
+  '내 펫 · 이름 바꾸기, 말하는 빈도, 가만히 있기, 짝 끊기.': 'Change pet · name, talk frequency, stay still, language, unpair.',
+  '항상 화면에 띄워 두려면': 'Keep your pets on screen',
+  '"PC에 설치하기"로 설치하면 바탕화면 아래에서 펫이 늘 걸어 다녀요. 컴퓨터를 켜면 자동으로 실행돼요. 작업표시줄의 ♥ 아이콘으로 끄고 켤 수 있어요.': 'Use "Install on PC" and your pets will always stroll along the bottom of your desktop. It starts with your computer; use the ♥ icon in the taskbar to turn it off and on.',
+  '기기를 바꾸거나 홈 화면 아이콘으로 새로 열 때': 'New device or home-screen icon',
+  '⋯ 설정 맨 아래의 "이어 쓰기 코드"를 새 화면 첫 페이지의 "이어 쓰기 코드로 예전 기록 불러오기"에 넣으면 짝과 기록이 그대로 돌아와요.': 'Enter the "transfer code" from the bottom of ⋯ Settings into "Restore with a transfer code" on the first screen to get your partner and history back.',
+  '아이패드 · 아이폰': 'iPad · iPhone',
+  'Safari 공유 버튼 → "홈 화면에 추가"로 앱처럼 쓰세요. 다른 앱을 쓰는 동안에도 보고 싶으면 더보기 → "바탕화면에 띄우기"를 누르세요. 작은 창에 두 펫만 떠요. 애플 정책상 앱을 열고 버튼을 한 번 눌러야 떠요.': 'Use Safari\'s Share button → "Add to Home Screen" to use it like an app. To see your pets while using other apps, tap More → "Floating window" and the two pets float in a small window. Apple requires you to open the app and tap the button once.',
+  '알겠어요': 'Got it',
+  '짝꿍에게 한마디': 'Say something to your partner',
+  '짝꿍과 둘만 쓰는 방과, 친구들과 같이 쓰는 모임방(최대 8명)을 오갈 수 있어요.': 'Switch between your couple room and group rooms with friends (up to 8).',
+  '지금 모임': 'Current group',
+  '친구에게 이 코드를 알려 주면 모임에 들어올 수 있어요.': 'Share this code so friends can join.',
+  '이 모임 나가기': 'Leave this group',
+  '정말 나갈까요? 다시 들어오려면 코드가 필요해요.': "Really leave? You'll need the code to come back.",
+  '나가기': 'Leave',
+  '새 모임': 'New group',
+  '모임 이름 (예: 우리 회사 점심팟)': 'Group name (e.g. Lunch crew)',
+  '모임 이름': 'Group name',
+  '모임 만들기': 'Create group',
+  '모임 코드': 'Group code',
+  '모임 들어가기': 'Join group',
+  '누구에게?': 'To whom?',
+  '점심 투표': 'Lunch vote',
+  '새 투표 열기': 'Start a new vote',
+  '타이머를 시작하면 펫들이 책상에 앉아요. 같이 끝까지 하면 5분마다 하트 1개 (한 번에 최대 12개, 하루 30개).': 'Start a timer and the pets sit at their desks. Finish together for 1 heart per 5 minutes (up to 12 per session, 30 a day).',
+  '15분': '15 min', '25분': '25 min', '50분': '50 min',
+  '나도 같이 집중하기': 'Join the focus',
+  '그만하기': 'Stop',
+  '같이 쓰는 할 일': 'Shared to-dos',
+  '할 일': 'To-dos',
+  '데이트 버킷리스트': 'Date bucket list',
+  '예: 이번 주말 영화 보기': 'e.g. Movie this weekend',
+  '추가': 'Add',
+  '하루 전과 당일에 펫이 알려 줘요. 생일과 기념일은 매년 알려 줘요.': 'Your pet reminds you the day before and on the day. Birthdays and anniversaries repeat every year.',
+  '예: OO이랑 데이트, 짝꿍 생일': "e.g. Date night, partner's birthday",
+  '제목': 'Title',
+  '데이트 · 약속': 'Date · Plan',
+  '생일 (매년)': 'Birthday (yearly)',
+  '기념일 (매년)': 'Anniversary (yearly)',
+  '기타': 'Other',
+  '건너뛰기': 'Skip',
+  '방 꾸미기 상점': 'Room shop',
+  '코인 충전 · 준비 중': 'Buy coins · soon',
+  '하트 모으기': 'Earning hearts',
+  '· 하루 한 번 앱을 열면 출석 하트 10개, 앱을 켜 둔 시간이 1시간 쌓일 때마다 5개씩 더 받아요 (하루 최대 25개).': '· Open the app once a day for 10 check-in hearts, plus 5 more for every hour it stays open (up to 25 a day).',
+  '고른 가구는 우리 둘의 방에 놓여요. 짝꿍 화면에도 똑같이 보이고, 펫들이 올라가서 놀아요.': 'Furniture goes in your shared room. Your partner sees it too, and the pets climb and play on it.',
+  '무료 가구': 'Free furniture',
+  '프리미엄 가구': 'Premium furniture',
+  '결제 준비 중': 'Coming soon',
+  '방 꾸미는 중 · 가구를 끌어서 옮기고, × 로 치워요': 'Decorating · drag to move, × to remove',
+  '상점': 'Shop',
+  '완료': 'Done',
+  '떠 있는 창': 'Floating window',
+  '아래 버튼을 누르면 작은 창에 두 펫이 떠요. 그다음 홈 화면으로 나가거나 다른 앱을 열어도 계속 보여요. 창은 손가락으로 옮기고, 옆으로 밀면 숨겨져요.': 'Tap the button below and your two pets float in a small window. They stay visible on the home screen and in other apps. Drag the window with your finger, or swipe it aside to tuck it away.',
+  '띄우기': 'Float',
+  '무엇을 할까요?': 'What shall we do?',
+  '캐릭터를 두 번 누르면 언제든 이 메뉴가 열려요.': 'Double-tap a pet anytime to open this menu.',
+  'UriPet 창 펼치기': 'Open UriPet',
+
+  /* ---- pets, room, canvas ---- */
+  '몽글이': 'Mongle', '도토': 'Doto', '찹쌀이': 'Chapssal', '단비': 'Danbi', '몽실': 'Mongsil', '콩이': 'Kongi',
+  '오류: ': 'Error: ',
+  '나': 'Me',
+  '자리 비움': 'Away',
+  '접속 중': 'Online',
+  '쪽!': 'Mwah!',
+  '영차!': 'Hup!', '높다!': 'So high!', '무거워!': 'Heavy!', '으악!': 'Whoa!', '아야!': 'Ouch!', '어지러워…': 'Dizzy…',
+  '여기 좋다!': 'Nice spot!', '깨끗해졌다!': 'All clean!',
+  '쓰담쓰담 좋아': 'I love pats', '헤헤': 'Hehe', '더 해 줘!': 'More!', '간지러워!': 'That tickles!', '꺄르르': 'Teehee', '거긴 안 돼!': 'Not there!',
+  '포근한 러그': 'Cozy rug', '말랑 쿠션': 'Squishy cushion', '캣타워': 'Cat tower', '원목 책장': 'Wooden bookshelf', '몬스테라 화분': 'Monstera plant',
+  '스탠드 조명': 'Floor lamp', '하트 침대': 'Heart bed', '구름 소파': 'Cloud sofa', '별빛 무드등': 'Starlight lamp', '벚꽃 나무': 'Cherry tree', '눈사람': 'Snowman',
+  '봄 한정': 'Spring only', '겨울 한정': 'Winter only',
+  /* idle lines */
+  '좋은 아침!': 'Good morning!', '오늘도 같이 힘내자': "Let's do our best today", '아침은 먹었어?': 'Had breakfast?', '커피 한 잔 할까?': 'Coffee time?', '일어나느라 고생했어': 'Getting up was tough, huh',
+  '배고파…': 'Hungry…', '밥 먹고 하자!': "Let's eat first!", '꼬르륵…': 'Grumble…',
+  '졸려…': 'Sleepy…', '기지개 한 번 켜자': "Let's stretch", '물 마셨어?': 'Had some water?', '조금만 더 힘내!': 'Almost there!', '간식 먹을 시간 아니야?': 'Snack time yet?',
+  '오늘 수고했어': 'Good job today', '저녁 맛있는 거 먹자': "Let's have a yummy dinner", '이제 좀 쉬어도 돼': 'You can rest now', '퇴근이다!': 'Done for the day!',
+  '아직 안 자?': 'Still up?', '이제 자야지…': 'Bedtime…', '내일 또 놀자': "Let's play tomorrow", '눈이 감겨…': 'Eyes closing…',
+  '월요일이다… 천천히 가자': "It's Monday… take it slow", '월요일은 커피가 두 배로 필요해': 'Mondays need double coffee',
+  '금요일이다!': "It's Friday!", '조금만 버티면 주말이야': 'The weekend is almost here',
+  '주말엔 푹 쉬어': 'Rest up this weekend', '오늘은 느긋하게 놀자': "Let's take it easy today",
+  '심심해': "I'm bored", '나 여기 있어!': "I'm here!", '흥얼흥얼~': 'La la la~', '쓰다듬어 줘': 'Pet me', '자세 바르게!': 'Sit up straight!', '눈 한 번 깜빡깜빡': 'Blink, blink', '오늘 하늘 봤어?': 'Seen the sky today?',
+  '{p} 보고 싶다': 'I miss {p}', '{p}한테 뽀뽀 보낼까?': 'Send {p} a kiss?', '{p}는 지금 뭐 할까?': "What's {p} up to?", '{p} 생각 중…': 'Thinking of {p}…', '{p}한테 쪽지 그려 줄까?': 'Draw {p} a note?',
+
+  /* ---- feature menu ---- */
+  '짝꿍에게': 'For your partner',
+  '짝꿍 머리 위로 올라가기': "Climb on partner's head",
+  '지금은 올라갈 수 없어요': "Can't climb right now",
+  '메시지 보내기': 'Send a message',
+  '점심 같이 먹자': 'Lunch together',
+  '받은 쪽지 {n}장': v => `Notes (${v.n})`,
+  '나와 펫': 'Me & my pet',
+  '크기: {s}': 'Size: {s}',
+  '말하기: {s}': 'Talk: {s}',
+  '펫 말하기: {s}': 'Pet talk: {s}',
+  '돌아다니게 하기': 'Let them roam',
+  '가만히 있기': 'Stay still',
+  '펫이 가만히 있어요': 'Pets are staying still',
+  '펫이 다시 돌아다녀요': 'Pets are roaming again',
+  '내 펫 · 이름 바꾸기': 'Change pet · name',
+  '방 꾸미기 · 상점': 'Decorate · Shop',
+  '가구 옮기기': 'Move furniture',
+  '화면': 'Screen',
+  '잠시 숨기기 (10분)': 'Hide for 10 min',
+  'UriPet 종료': 'Quit UriPet',
+  '{name} 친구들에게': 'For {name}',
+  '누구를 콕 찌를까요?': 'Who should I poke?',
+  '단체 메시지': 'Group chat',
+  '다 같이 똥 싸기': 'Group poop',
+  '모임 할 일': 'Group to-dos',
+  '모임 일정': 'Group plans',
+  '친구 머리 위로 올라가기': "Climb on a friend's head",
+  '누구 머리 위로 갈까요?': 'Whose head?',
+  '모임방 꾸미기': 'Decorate group room',
+  '방': 'Room',
+  '방 고르기 · 모임 코드': 'Rooms · group code',
+  '우리 둘 방으로': 'Back to our room',
+
+  /* ---- desktop / floating window ---- */
+  'PC 앱을 열었어요. 바탕화면 아래에서 펫이 걸어 다녀요': 'Opened the PC app. Your pets are strolling along your desktop',
+  'PC 앱이 아직 없어서 설치 파일을 내려받아요. 받은 파일을 열면 바탕화면에 펫이 나타나요': "No PC app yet, so the installer is downloading. Open it and your pets appear on your desktop",
+  '바탕화면 펫은 지금 Windows에서만 돼요. Mac 앱은 준비 중이에요': 'Desktop pets only work on Windows for now. A Mac app is coming',
+  '이 브라우저에서는 떠 있는 창이 안 돼요. 아이패드 · 아이폰은 Safari로 열어 주세요 (카카오톡 안에서 열었다면 "다른 브라우저로 열기").': 'This browser can\'t do floating windows. On iPad · iPhone, open UriPet in Safari (inside KakaoTalk, use "Open in another browser").',
+  '두 펫 영상을 준비하는 중이에요… (4초)': 'Getting the pet video ready… (4 sec)',
+  '영상을 만들지 못했어요. Safari를 최신 버전으로 업데이트해 주세요.': "Couldn't make the video. Please update Safari.",
+  '띄우지 못했어요: {e}': "Couldn't float it: {e}",
+  '이미 PC 앱으로 쓰고 있어요': "You're already using the PC app",
+  '설치 파일을 내려받는 중이에요. 받은 파일을 열면 설치돼요': 'Downloading the installer. Open it to install',
+  'PC 앱은 Windows에서 설치할 수 있어요. PC에서 yeweonjung.github.io/uripet 에 들어가 주세요': 'The PC app is for Windows. Visit yeweonjung.github.io/uripet on your PC',
+  '{who} 함께 · {d}': 'With {who} · {d}',
+
+  /* ---- groups ---- */
+  '친구': 'Friend',
+  '짝꿍': 'Partner',
+  '우리 둘 · {name}': 'Us two · {name}',
+  '커플방': 'Couple room',
+  '모임 · {n}/8명': 'Group · {n}/8',
+  '{name} (나)': '{name} (me)',
+  '모임 코드 {code}를 복사했어요': 'Copied group code {code}',
+  '코드를 길게 눌러 복사해 주세요': 'Long-press the code to copy it',
+  '코드를 길게 눌러 복사해 주세요.': 'Long-press the code to copy it.',
+  '모임은 5개까지 들어갈 수 있어요': 'You can be in up to 5 groups',
+  '만들지 못했어요: {e}': "Couldn't create it: {e}",
+  '모임을 만들었어요! 코드 {code}를 친구들에게 알려 주세요': 'Group created! Share code {code} with friends',
+  '코드가 맞지 않아요': "That code doesn't match",
+  '이 모임은 이미 8명이 꽉 찼어요': 'This group is already full (8)',
+  '들어가지 못했어요: {e}': "Couldn't join: {e}",
+  '모임에서 나왔어요': 'You left the group',
+  '모임을 열지 못했어요': "Couldn't open the group",
+  '{name} 님이 모임에 들어왔어요': '{name} joined the group',
+  '왔어!': "I'm back!",
+  '아직 모임에 친구가 없어요. 모임 코드를 알려 주세요': 'No friends here yet. Share the group code',
+  '콕!': 'Poke!',
+  '쪽지 보냈어!': 'Sent a note!',
+  '다 같이 싸자!': "Everyone, let's go!",
+  '보내지 못했어요: {e}': "Couldn't send: {e}",
+  '나도!': 'Me too!',
+  '같이 싸!': "Let's go together!",
+  '{who} 콕 찔렀어!': '{who} poked me!',
+  '{who} 나를 콕 찔렀어요': '{who} poked you',
+  '{name} 콕!': 'Poke, {name}!',
+  '쪽지 왔어! 나를 눌러 봐': 'A note came! Tap me',
+  '{who} 낙서 쪽지를 보냈어요': '{who} sent you a doodle',
+  '{who} 다 같이 똥 싸재요': '{who} wants everyone to poop together',
+  '점심 투표하자!': "Let's vote on lunch!",
+  '{who} 점심 투표를 열었어요': '{who} started a lunch vote',
+  '{name} 단체 메시지': '{name} chat',
+  '모임에 첫 한마디를 남겨 보세요!': 'Say the first hello to the group!',
+  '아직 열린 투표가 없어요. 새 투표를 열면 메뉴 3개가 나와요.': 'No open vote yet. Start one to get 3 menu picks.',
+  '{who} 님이 연 투표 · {total}/{n}명 참여': "{who}'s vote · {total}/{n} voted",
+  '{n}표': v => plural(v.n, 'vote', 'votes'),
+  '{menu} 찬성!': '{menu}, yes!',
+
+  /* ---- focus ---- */
+  '{who} {m}분 집중을 시작했어요. 같이 할래요?': '{who} started a {m}-min focus. Join in?',
+  '나도 집중!': "I'm in!",
+  '먼저 갈게…': 'Heading out first…',
+  '{names} 집중 중 · {m}분': '{names} focusing · {m} min',
+  '집중 {t} · {n}명': 'Focus {t} · {n}',
+  '같이 해냈다!': 'We did it!',
+  '끝!': 'Done!',
+  '{m}분 집중 완료! 하트 +{n}': '{m}-min focus done! Hearts +{n}',
+  '{m}분 집중 완료! (오늘 집중 하트는 다 받았어요)': "{m}-min focus done! (You've got all of today's focus hearts)",
+  '{m}분 집중 완료!': '{m}-min focus done!',
+  '집중 시작!': 'Focus time!',
+
+  /* ---- to-dos & plans ---- */
+  '{name} 할 일': '{name} to-dos',
+  '예: 장보기, 과제 제출': 'e.g. Groceries, homework',
+  '예: 바다 보러 가기, 커플 사진 찍기': 'e.g. See the ocean, couple photos',
+  '서버 업데이트가 필요해요 (002_more_events.sql 실행)': 'Server update needed (run 002_more_events.sql)',
+  '서버 업데이트가 필요해요 (003_messages.sql 실행)': 'Server update needed (run 003_messages.sql)',
+  '서버 업데이트가 필요해요 (004_restore.sql 실행)': 'Server update needed (run 004_restore.sql)',
+  '서버 업데이트가 필요해요 (005_room.sql 실행)': 'Server update needed (run 005_room.sql)',
+  '서버 업데이트가 필요해요 (007_groups.sql 실행)': 'Server update needed (run 007_groups.sql)',
+  '서버 업데이트가 필요해요 (008_together.sql 실행)': 'Server update needed (run 008_together.sql)',
+  '서버 업데이트 필요': 'Server update needed',
+  '같이 할 일을 적어 보세요.': 'Write down things to do together.',
+  '둘이 해 보고 싶은 걸 모아 보세요.': 'Collect things you two want to try.',
+  '저장하지 못했어요: {e}': "Couldn't save: {e}",
+  '{who} 완료': 'Done by {who}',
+  '{who} 추가': 'Added by {who}',
+  '지우기': 'Delete',
+  '해냈다!': 'Did it!',
+  '축하해!': 'Congrats!',
+  "{who} '{text}' 완료!": "{who} finished '{text}'!",
+  "{who} '{text}'을 추가했어요": "{who} added '{text}'",
+  '추가하지 못했어요: {e}': "Couldn't add it: {e}",
+  '꼭 같이 하자!': "Let's do it together!",
+  '적어 뒀어!': 'Noted!',
+  '아직 적어 둔 일정이 없어요.': 'No plans yet.',
+  '데이트': 'Date', '생일': 'Birthday', '기념일': 'Anniversary', '일정': 'Plan',
+  '오늘': 'Today', '내일': 'Tomorrow',
+  '기억해 둘게!': "I'll remember!",
+  '오늘 {title}!': '{title} today!',
+  '오늘은 {title}': 'Today: {title}',
+  '내일 {title}!': '{title} tomorrow!',
+  '내일은 {title}': 'Tomorrow: {title}',
+
+  /* ---- tour ---- */
+  '안녕! 나는 {nm}. 여기서 {p}의 펫이랑 같이 살 거야. 나를 집어서 옮기거나 휙 던질 수도 있어!': "Hi! I'm {nm}. I'll live here with {p}'s pet. You can pick me up, move me, or even throw me!",
+  '안녕! 나는 {nm}. 여기서 같이 살 거야. 나를 집어서 옮기거나 휙 던질 수도 있어!': "Hi! I'm {nm}. I'll live here with you. You can pick me up, move me, or even throw me!",
+  '뽀뽀를 보내면 짝꿍 화면에서도 두 펫이 쪽!': "Send a kiss and the pets smooch on your partner's screen too!",
+  '메시지를 쓰면 내가 말풍선으로 전해 줄게.': "Write a message and I'll deliver it in a bubble.",
+  '그림을 그려 보내면 쪽지를 들고 갈게.': "Send a drawing and I'll carry the note over.",
+  '더보기엔 같이 집중하기, 할 일, 일정, 방 꾸미기가 있어.': 'More has focus time, to-dos, plans and room decorating.',
+  '처음 만난 날을 정하면 D-day를 같이 세.': 'Set the day you met and we count the days together.',
+  '여기를 누르면 친구들이랑 쓰는 모임방(최대 8명)으로 갈 수 있어.': 'Tap here for group rooms with friends (up to 8).',
+  '출석하면 하트 10개, 켜 두면 더 줘! 상점에서 가구를 사.': 'Check in for 10 hearts, and keep me open for more! Buy furniture in the shop.',
+  '설정이야. 다른 기기로 옮길 때 쓰는 이어 쓰기 코드도 여기 있어.': 'Settings! Your transfer code for other devices is in here too.',
+  '마지막! 나를 두 번 누르면 모든 기능이 한 번에 나와. 잘 부탁해!': 'Last one! Double-tap me to see everything at once. Nice to meet you!',
+  '시작하기': "Let's go",
+  '다음 ({i}/{n})': 'Next ({i}/{n})',
+  '이제 놀자!': "Let's play!",
+
+  /* ---- boot, setup, pairing ---- */
+  '필요한 파일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.': "Couldn't load required files. Please check your internet connection.",
+  '서버에 접속하지 못했어요: {e}': "Couldn't reach the server: {e}",
+  '<p class="help">Supabase에서 익명 로그인을 켜야 해요.<ol><li>Supabase 대시보드 → Authentication → Sign In / Providers</li><li><b>Allow anonymous sign-ins</b> 켜기 → Save</li></ol></p>': '<p class="help">Anonymous sign-in must be enabled in Supabase.<ol><li>Supabase dashboard → Authentication → Sign In / Providers</li><li>Turn on <b>Allow anonymous sign-ins</b> → Save</li></ol></p>',
+  '서버 데이터를 읽지 못했어요: {e}': "Couldn't read server data: {e}",
+  '<p class="help">Supabase SQL Editor에서 <b>001_init.sql</b>을 먼저 실행해 주세요.</p>': '<p class="help">Run <b>001_init.sql</b> in the Supabase SQL Editor first.</p>',
+  '이름을 적어 주세요.': 'Please enter your name.',
+  '잠시 후 다시 눌러 주세요 (접속이 많아요)': 'Busy right now. Please try again in a moment',
+  '인터넷 연결을 확인하고 다시 눌러 주세요': 'Check your internet connection and try again',
+  '짝 정보를 읽지 못했어요: {e}': "Couldn't load your pairing: {e}",
+  '코드를 만들지 못했어요: {e}': "Couldn't make a code: {e}",
+  '코드 {code}를 복사했어요': 'Copied code {code}',
+  '코드 6자리를 입력해 주세요.': 'Please enter the 6-character code.',
+  '코드가 맞지 않거나 이미 쓰인 코드예요. 다시 확인해 주세요.': 'That code is wrong or already used. Please check it.',
+  '이미 짝이 있어요. 설정에서 짝을 끊은 뒤 다시 해 주세요.': 'You already have a partner. Unpair in Settings first.',
+  '연결하지 못했어요: {e}': "Couldn't connect: {e}",
+  '짝이 끊어졌어요.': 'You were unpaired.',
+  '{name} · {on}/{n}명 접속': '{name} · {on}/{n} online',
+
+  /* ---- events ---- */
+  '짝꿍방: {who} {what}': 'Couple room: {who} {what}',
+  '{who} 점심으로 {menu} 먹재요': '{who} wants {menu} for lunch',
+  '{menu} 같이 먹자!': "Let's have {menu}!",
+  '나도 같이!': 'Me too!',
+  '{who} 같이 똥 싸재요': '{who} wants to poop together',
+  '{who} 뽀뽀했어요': '{who} sent you a kiss',
+  '{who} 보고 싶대!': '{who} misses you!',
+  '{who} 내 펫을 던졌어요!': '{who} threw your pet!',
+  '{who} 날 잡았어!': '{who} grabbed me!',
+  '같이 싸자!': "Let's go together!",
+  '{menu} 먹자고 했어!': 'Asked for {menu}!',
+  '짝꿍이 앱을 열면 전해져요': "Your partner gets it when they open the app",
+  '끙…': 'Nngh…',
+  '시원하다!': 'Ahh, better!',
+  '앱을 켜 둔 지 {h}시간! 하트 +{n}': v => `${plural(v.h, 'hour', 'hours')} with the app open! Hearts +${v.n}`,
+  '하트 {n}개 받았다!': v => `Got ${plural(v.n, 'heart', 'hearts')}!`,
+  '오늘 출석 완료! 하트 +{n}': 'Checked in today! Hearts +{n}',
+  '출석 하트 받았어!': 'Got my check-in hearts!',
+
+  /* ---- shop ---- */
+  '무료': 'Free',
+  '우리 방에 놓기': 'Place in our room',
+  '가구는 16개까지 놓을 수 있어요': 'You can place up to 16 items',
+  '놓지 못했어요: {e}': "Couldn't place it: {e}",
+  '{name}다!': '{name}!',
+  '가구': 'Furniture',
+  '{name} 놨어!': 'Placed the {name}!',
+  '치우지 못했어요: {e}': "Couldn't remove it: {e}",
+  '옮기지 못했어요: {e}': "Couldn't move it: {e}",
+  '캐릭터 크기: {s}': 'Pet size: {s}',
+
+  /* ---- lunch ---- */
+  '전체': 'All', '한식': 'Korean', '중식': 'Chinese', '일식': 'Japanese', '양식': 'Western', '분식': 'Snacks', '아시안': 'Asian',
+  '김치찌개': 'Kimchi stew', '된장찌개': 'Doenjang stew', '제육볶음': 'Spicy pork', '비빔밥': 'Bibimbap', '순두부찌개': 'Soft tofu stew',
+  '국밥': 'Gukbap', '불고기 백반': 'Bulgogi set', '냉면': 'Cold noodles', '칼국수': 'Kalguksu', '닭갈비': 'Dakgalbi',
+  '짜장면': 'Jjajangmyeon', '짬뽕': 'Jjamppong', '마라탕': 'Malatang', '볶음밥': 'Fried rice', '탕수육': 'Sweet & sour pork', '마파두부밥': 'Mapo tofu rice',
+  '돈카츠': 'Tonkatsu', '초밥': 'Sushi', '라멘': 'Ramen', '우동': 'Udon', '규동': 'Gyudon', '회덮밥': 'Sashimi rice bowl',
+  '파스타': 'Pasta', '햄버거': 'Burger', '샐러드': 'Salad', '리조또': 'Risotto', '샌드위치': 'Sandwich', '피자': 'Pizza',
+  '떡볶이': 'Tteokbokki', '김밥': 'Gimbap', '라볶이': 'Rabokki', '쫄면': 'Jjolmyeon', '순대': 'Sundae sausage',
+  '쌀국수': 'Pho', '카레': 'Curry', '팟타이': 'Pad thai', '포케': 'Poke bowl', '분짜': 'Bun cha',
+  '오늘은 {m} 어때?': 'How about {m} today?',
+  '{menu} 먹자고 보냈어요': 'Asked for {menu}',
+
+  /* ---- fortune ---- */
+  '햇살': 'Sunshine', '오래 미뤄 둔 일이 생각보다 쉽게 풀려요. 오전에 먼저 시작해 보세요.': "Something you've put off turns out easier than you think. Start it in the morning.",
+  '구름 산책': 'Cloud stroll', '서두르지 않아도 괜찮은 날이에요. 천천히 가도 도착해요.': "No need to rush today. Slow and steady still gets you there.",
+  '무지개': 'Rainbow', '작은 실수 뒤에 좋은 일이 따라와요. 너무 마음 쓰지 마세요.': "Something good follows a small slip. Don't worry too much.",
+  '별똥별': 'Shooting star', '문득 떠오른 생각을 메모해 두세요. 나중에 큰 도움이 돼요.': "Jot down any idea that pops up. It'll help a lot later.",
+  '따뜻한 차': 'Warm tea', '오늘은 몸을 챙기는 게 운을 챙기는 거예요. 물 많이 마시기!': 'Taking care of yourself is taking care of your luck today. Drink lots of water!',
+  '네잎클로버': 'Four-leaf clover', '뜻밖의 칭찬이나 연락이 올 수 있어요.': 'A surprise compliment or message may come your way.',
+  '종이비행기': 'Paper plane', '망설이던 메시지는 보내 보세요. 답이 좋게 와요.': "Send the message you've been holding back. The reply will be sweet.",
+  '보름달': 'Full moon', '그동안 쌓은 노력이 눈에 보이는 날이에요.': 'Your hard work finally shows today.',
+  '작은 우산': 'Little umbrella', '예상 못 한 일이 생겨도 금방 지나가요. 준비해 둔 게 빛을 봐요.': 'Surprises pass quickly. Being prepared pays off.',
+  '나침반': 'Compass', '선택이 고민될 땐 처음 마음을 따라가세요.': 'When a choice is hard, follow your first feeling.',
+  '솜사탕': 'Cotton candy', '달달한 간식이 기분을 확 바꿔 줘요.': 'A sweet snack will turn your mood right around.',
+  '열쇠': 'Key', '막혀 있던 문제의 실마리를 찾게 돼요.': "You'll find the clue to a stuck problem.",
+  '해바라기': 'Sunflower', '먼저 웃어 주면 하루가 환해져요.': 'Smile first and your day lights up.',
+  '편지': 'Letter', '오랜만에 안부를 전하면 좋은 소식이 돌아와요.': "Say hi to someone you haven't talked to in a while. Good news comes back.",
+  '고양이 낮잠': 'Cat nap', '잠깐 쉬어 가는 게 오히려 일을 빨리 끝내 줘요.': 'A short break actually helps you finish sooner.',
+  '반짝이는 조약돌': 'Shiny pebble', '평범한 하루 속에 작은 행운이 숨어 있어요.': 'A little luck is hiding in an ordinary day.',
+  '두 개의 컵': 'Two cups', '둘이 함께하면 뭐든 두 배로 즐거워요.': 'Everything is twice the fun together.',
+  '새싹': 'Sprout', '새로 시작하기 좋은 날이에요. 작게라도 첫걸음을 떼세요.': 'A great day for fresh starts. Take a first step, however small.',
+  '노을': 'Sunset', '하루를 잘 마무리하면 내일이 가벼워져요.': 'Wrap up today well and tomorrow feels lighter.',
+  '풍선': 'Balloon', '마음이 가벼워지는 일이 생겨요. 너무 꽉 붙잡지 마세요.': "Something will lift your heart. Don't hold on too tight.",
+  '살구색': 'Apricot', '하늘색': 'Sky blue', '연두색': 'Lime', '라벤더': 'Lavender', '버터색': 'Butter', '민트색': 'Mint', '분홍색': 'Pink', '코랄색': 'Coral', '베이지': 'Beige', '하양': 'White',
+  '{date}의 카드': 'Card for {date}',
+  '저장했어요': 'Saved',
+  '오늘의 카드는 {name}!': "Today's card: {name}!",
+  '카드를 저장했어요': 'Card saved',
+  '아직 저장한 카드가 없어요.': 'No saved cards yet.',
+
+  /* ---- notes & messages ---- */
+  '쪽지를 보냈어요': 'Note sent',
+  '{who}의 메시지': 'Messages with {who}',
+  '아직 주고받은 메시지가 없어요. 첫 한마디를 보내 보세요!': 'No messages yet. Send the first one!',
+  '{name}의 쪽지': "{name}'s note",
+  '{date} {time}에 보냈어요': 'Sent {date}, {time}',
+  '다음 쪽지 ({n})': 'Next note ({n})',
+  '뽀뽀 {n}번': v => Number(v.n) === 1 ? 'a kiss' : `${v.n} kisses`,
+  '콕 {n}번': v => Number(v.n) === 1 ? 'a poke' : `${v.n} pokes`,
+  '쪽지 {n}장': v => Number(v.n) === 1 ? 'a note' : `${v.n} notes`,
+  '똥 {n}번': v => Number(v.n) === 1 ? 'a poop' : `${v.n} poops`,
+  '메시지 {n}개': v => Number(v.n) === 1 ? 'a message' : `${v.n} messages`,
+  '점심 제안': 'a lunch idea',
+  '자리 비운 동안 {who} {list} 보냈어요': 'While you were away, {who} sent {list}',
+
+  /* ---- D-day & settings ---- */
+  '오늘 {n}일!': 'Day {n} today!',
+  '오늘 {n}주년!': v => `${ORD(Number(v.n))} anniversary today!`,
+  '함께한 지 {n}일째': 'Day {n} together',
+  '만나기까지 {n}일': v => `${plural(v.n, 'day', 'days')} until we meet`,
+  '처음 만난 날이 바뀌었어요 · D+{n}': 'The day we met was updated · D+{n}',
+  '이어 쓰기 코드 {c}를 복사했어요': 'Copied transfer code {c}',
+  '코드 8자리를 넣어 주세요.': 'Please enter the 8-character code.',
+  '접속하지 못했어요: {e}': "Couldn't connect: {e}",
+  '코드가 맞지 않아요. 다시 확인해 주세요.': "That code doesn't match. Please check it.",
+  '불러오지 못했어요: {e}': "Couldn't restore: {e}",
+  '예전 기록을 불러왔어요': 'Your history is back',
+  '끊지 못했어요: {e}': "Couldn't unpair: {e}",
+  '예상하지 못한 문제가 생겼어요: {e}': 'Something unexpected went wrong: {e}',
+};
+/* tr('{who} 뽀뽀했어요', { who }) → Korean as written, or the English entry; {name} placeholders filled from vars */
+function tr(ko, vars) {
+  let s = EN && Object.prototype.hasOwnProperty.call(EN_DICT, ko) ? EN_DICT[ko] : ko;
+  if (typeof s === 'function') return s(vars || {});
+  return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s;
+}
+/* static page: translate text nodes and a few attributes once, before anything is shown */
+if (EN) {
+  const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentNode && /^(SCRIPT|STYLE)$/.test(n.parentNode.nodeName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = []; while (tw.nextNode()) nodes.push(tw.currentNode);
+  for (const n of nodes) {
+    const raw = n.nodeValue, key = raw.trim();
+    if (!key || !Object.prototype.hasOwnProperty.call(EN_DICT, key)) continue;
+    const en = EN_DICT[key], lead = /^[.,!?]/.test(en) ? '' : raw.match(/^\s*/)[0];
+    n.nodeValue = lead + en + raw.match(/\s*$/)[0];
+  }
+  for (const el of document.body.querySelectorAll('[placeholder], [aria-label], [title], [alt]'))
+    for (const a of ['placeholder', 'aria-label', 'title', 'alt']) { const v = el.getAttribute(a); if (v && Object.prototype.hasOwnProperty.call(EN_DICT, v)) el.setAttribute(a, EN_DICT[v]); }
+}
+/* i18n-end */
 const SUPABASE_URL = 'https://sukmfrubuaaiksjfibpu.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Ri0VoK6K8BFA6MUBRMRjpA_ZQA1azY4';
 const PETS = [['mongle', '몽글이'], ['dotori', '도토'], ['chapssal', '찹쌀이'], ['danbi', '단비'], ['mongsil', '몽실'], ['kongi', '콩이']];
-const PET_NAME = Object.fromEntries(PETS);
+const PET_NAME = Object.fromEntries(PETS.map(([id, n]) => [id, tr(n)]));
 const $ = id => document.getElementById(id);
 const TAU = Math.PI * 2;
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -655,7 +1185,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath(); return this;
   };
 }
-window.addEventListener('error', e => { try { const t = document.getElementById('toast'); t.textContent = '오류: ' + (e.message || e.error); t.hidden = false; } catch (_) {} });
+window.addEventListener('error', e => { try { const t = document.getElementById('toast'); t.textContent = tr('오류: ') + (e.message || e.error); t.hidden = false; } catch (_) {} });
 
 let prefs = { talk: 2, still: false, size: DESKTOP ? 'small' : 'medium' };
 const SIZE_MUL = { xsmall: .55, small: .75, medium: 1, large: 1.25 };
@@ -795,7 +1325,7 @@ function buildPicker(boxId, onPick) {
   const items = PETS.map(([id, name]) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'pet-opt'; b.dataset.pet = id; b.setAttribute('aria-pressed', 'false');
     const c = document.createElement('canvas'); c.width = 220; c.height = 220;
-    const s = document.createElement('span'); s.textContent = name;
+    const s = document.createElement('span'); s.textContent = tr(name);
     b.append(c, s); b.onclick = () => { items.forEach(x => x.setAttribute('aria-pressed', x === b)); onPick(id); };
     box.append(b); return b;
   });
@@ -853,7 +1383,7 @@ function dropOff(p, line) { const h = effHop(p); p.anchor = null; p.leap = null;
 function rideOn(p, base, share = true) {
   if (!p || !base || p === base || p.fly || base.fly) return false;
   if (base.anchor && base.anchor.type === 'ride' && base.anchor.base === p) dropOff(base);
-  startLeap(p, { type: 'ride', base }); say(p, '영차!', 1.2);
+  startLeap(p, { type: 'ride', base }); say(p, tr('영차!'), 1.2);
   const ch = activeChannel(); if (share && ch) ch.send({ type: 'broadcast', event: 'ride', payload: { owner: ownerOf(p), on: ownerOf(base), by: uid, room: roomKey() } });
   return true;
 }
@@ -872,7 +1402,7 @@ function updateAnchor(p, t) {
     p.x = L.fx + (ap.x - L.fx) * k; p.hop = L.fh + (ap.h - L.fh) * k + Math.sin(k * Math.PI) * 70;
     if (k >= 1) {
       p.leap = null; p.anchor = L.anchor; p.hop = ap.h;
-      if (L.anchor.type === 'ride') { say(p, '높다!', 2); say(L.anchor.base, '무거워!', 2); p.react = t + 1.5; p.until = t + rand(8, 16); }
+      if (L.anchor.type === 'ride') { say(p, tr('높다!'), 2); say(L.anchor.base, tr('무거워!'), 2); p.react = t + 1.5; p.until = t + rand(8, 16); }
       else { p.until = t + rand(6, 12); if (Math.random() < .4) p.state = 'sleep'; }
     }
     return true;
@@ -882,7 +1412,7 @@ function updateAnchor(p, t) {
   if (!ap) { dropOff(p); return false; }
   if (a.type === 'ride') {
     const b = a.base;
-    if (b.drag || b.fly || b.leap || b.squat > t || b.state === 'sleep' || scene) { dropOff(p, '으악!'); return false; }
+    if (b.drag || b.fly || b.leap || b.squat > t || b.state === 'sleep' || scene) { dropOff(p, tr('으악!')); return false; }
   }
   p.x = ap.x; p.hop = ap.h;
   if (t > p.until && !scene) { const h = p.hop; p.anchor = null; p.hop = h; p.hopV = 220; p.dir = Math.random() < .5 ? -1 : 1; p.until = t + rand(2, 4); p.state = 'idle'; }
@@ -927,12 +1457,12 @@ function updateFlight(p, dt, t) {
   if (p.hop > ceiling) { p.hop = ceiling; p.vy = -Math.abs(p.vy) * .4; }
   const other = p.hitDone ? null : allPets().find(o => o !== p && !o.fly && !o.drag && Math.abs(p.x - o.x) < 46 * SC && p.hop < HEIGHT[o.kind] * .8);
   if (other) {
-    p.hitDone = true; p.vx *= -.45; jump(other, 380); other.dizzy = t + 2.2; say(other, '아야!', 1.8);
+    p.hitDone = true; p.vx *= -.45; jump(other, 380); other.dizzy = t + 2.2; say(other, tr('아야!'), 1.8);
   }
   if (p.hop <= 0) {
     p.hop = 0;
     if (p.vy < -320) { p.vy = -p.vy * .42; p.vx *= .7; }
-    else { p.fly = false; p.vx = p.vy = 0; p.spin = 0; p.dizzy = t + 2.6; p.state = 'idle'; p.until = t + 3; say(p, '어지러워…', 2.2); }
+    else { p.fly = false; p.vx = p.vy = 0; p.spin = 0; p.dizzy = t + 2.6; p.state = 'idle'; p.until = t + 3; say(p, tr('어지러워…'), 2.2); }
   }
 }
 
@@ -1017,7 +1547,7 @@ function drawRoom(t) {
     if (isFocusing(p)) drawDesk(p, gy, t);
     // name tag
     ctx.font = `${Math.round(13 * Math.min(1.3, SC))}px "Gowun Dodum", sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = colors.muted;
-    const label = p.role === 'me' ? '나' : (p.role === 'friend' ? p.name : (partner ? partner.nickname : '')) + (off ? ' · 자리 비움' : '');
+    const label = p.role === 'me' ? tr('나') : (p.role === 'friend' ? p.name : (partner ? partner.nickname : '')) + (off ? ' · ' + tr('자리 비움') : '');
     if (DESKTOP) { if (off) ctx.fillText(label, p.x, gy - lift - (HEIGHT[p.kind] + 6) * SC); }
     else ctx.fillText(label, p.x, gy + 26 * Math.min(1.3, SC));
     ctx.globalAlpha = 1;
@@ -1033,7 +1563,7 @@ function drawRoom(t) {
   ctx.textAlign = 'start';
   if (scene && scene.type === 'kiss' && scene.phase === 'kiss') {
     const k = t - scene.t0;
-    if (k < 1) { ctx.globalAlpha = Math.min(1, (1 - k) * 2); ctx.fillStyle = colors.love; ctx.font = `${Math.round(30 * SC)}px Jua, sans-serif`; ctx.textAlign = 'center'; ctx.fillText('쪽!', (pets.me.x + pets.partner.x) / 2, gy - (150 + k * 14) * SC); ctx.textAlign = 'start'; ctx.globalAlpha = 1; }
+    if (k < 1) { ctx.globalAlpha = Math.min(1, (1 - k) * 2); ctx.fillStyle = colors.love; ctx.font = `${Math.round(30 * SC)}px Jua, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(tr('쪽!'), (pets.me.x + pets.partner.x) / 2, gy - (150 + k * 14) * SC); ctx.textAlign = 'start'; ctx.globalAlpha = 1; }
   }
   particles = particles.filter(h => t - h.born < h.life);
   for (const h of particles) {
@@ -1181,8 +1711,8 @@ function pickLine() {
   else if (h >= 18 && h < 22) pool.push(...LINES.evening, ...LINES.evening);
   else pool.push(...LINES.night, ...LINES.night);
   if (wd === 1) pool.push(...LINES.monday); if (wd === 5) pool.push(...LINES.friday); if (wd === 0 || wd === 6) pool.push(...LINES.weekend);
-  if (partner) pool.push(...LINES.couple.map(l => l.replace(/\{p\}(는|한테)?/g, (m, j) => j === '는' ? josa(partner.nickname, '은', '는') : partner.nickname + (j || ''))));
-  return pool[Math.floor(Math.random() * pool.length)];
+  if (partner) pool.push(...LINES.couple.map(l => EN ? tr(l, { p: partner.nickname }) : l.replace(/\{p\}(는|한테)?/g, (m, j) => j === '는' ? josa(partner.nickname, '은', '는') : partner.nickname + (j || ''))));
+  return tr(pool[Math.floor(Math.random() * pool.length)]);
 }
 function maybeTalk(t) {
   const gap = TALK_GAP[prefs.talk];
@@ -1261,7 +1791,7 @@ function endDrag(e) {
     const other = riderOf(p) ? null : allPets().find(o => o !== p && Math.abs(p.x - o.x) < 46 * SC && p.hop > HEIGHT[o.kind] * .5 && p.hop < HEIGHT[o.kind] + 140);
     if (other) { rideOn(p, other); return; }
     const pl = platforms().find(q => Math.abs(p.x - q.x) < q.w / 2 * SC && Math.abs(p.hop - q.h) < 45);
-    if (pl) { p.anchor = { type: 'perch', itemId: pl.it.id, idx: pl.idx }; p.hop = pl.h; p.until = now() + rand(6, 12); say(p, '여기 좋다!', 1.6); }
+    if (pl) { p.anchor = { type: 'perch', itemId: pl.it.id, idx: pl.idx }; p.hop = pl.h; p.until = now() + rand(6, 12); say(p, tr('여기 좋다!'), 1.6); }
   }
 }
 let suppressClick = false;
@@ -1274,7 +1804,7 @@ function applyRemoteToss(m) {
   p.anchor = null; p.leap = null;
   p.drag = false; p.x = m.x * W; p.hop = m.h || 0;
   throwPet(p, m.vx * W, m.vy);
-  if (p.role === 'me') toast(`${josa(partner.nickname, '이', '가')} 내 펫을 던졌어요!`);
+  if (p.role === 'me') toast(tr('{who} 내 펫을 던졌어요!', { who: josa(partner.nickname, '이', '가') }));
 }
 stage.addEventListener('pointerup', endDrag);
 stage.addEventListener('pointercancel', endDrag);
@@ -1288,7 +1818,7 @@ function applyRemoteMove(m) {
   p.x = Math.max(margin() * .6, Math.min(W - margin() * .6, m.x * W));
   p.hop = Math.max(0, m.h || 0);
   if (m.drag) {
-    if (!p.drag && p.role === 'me' && now() - heldNoticeAt > 6) { heldNoticeAt = now(); say(p, `${josa(partner.nickname, '이', '가')} 날 잡았어!`, 2.5); }
+    if (!p.drag && p.role === 'me' && now() - heldNoticeAt > 6) { heldNoticeAt = now(); say(p, tr('{who} 날 잡았어!', { who: josa(partner.nickname, '이', '가') }), 2.5); }
     p.drag = true; p.hopV = 0; p.state = 'idle';
   } else { p.drag = false; p.hopV = 0; p.until = now() + rand(1.5, 3); }
 }
@@ -1302,7 +1832,7 @@ function openFeatures() {
     ['짝꿍에게', [
       ['♥', '뽀뽀 보내기', () => sendEvent('kiss'), 'love'],
       ['콕', '콕 찌르기', () => sendEvent('poke')],
-      ['↑', '짝꿍 머리 위로 올라가기', () => { if (!rideOn(pets.me, pets.partner)) toast('지금은 올라갈 수 없어요'); }],
+      ['↑', '짝꿍 머리 위로 올라가기', () => { if (!rideOn(pets.me, pets.partner)) toast(tr('지금은 올라갈 수 없어요')); }],
       ['말풍', '메시지 보내기', openMessages],
       ['✎', '낙서 쪽지', openDoodle],
       ['똥', '같이 똥 싸기', () => sendEvent('poop')],
@@ -1310,14 +1840,14 @@ function openFeatures() {
       ['⏱', '같이 집중하기', openFocus],
       ['✓', '할 일 · 버킷리스트', () => openTodos('todo')],
       ['일정', '일정 · 기념일', openPlans],
-      ...(notes.length ? [['✉', `받은 쪽지 ${notes.length}장`, openNote, 'love']] : []),
+      ...(notes.length ? [['✉', tr('받은 쪽지 {n}장', { n: notes.length }), openNote, 'love']] : []),
     ]],
     ['나와 펫', [
       ['★', '오늘의 운세', openFortune],
       ['D', '처음 만난 날', () => $('ddayBtn').onclick()],
-      ['↕', `크기: ${SIZE_LABEL[prefs.size] || '보통'}`, () => setSize(SIZE_ORDER[(SIZE_ORDER.indexOf(prefs.size) + 1) % SIZE_ORDER.length])],
-      ['말', `말하기: ${['조용히', '가끔', '보통', '자주', '수다쟁이'][prefs.talk]}`, () => { prefs.talk = (prefs.talk + 1) % 5; savePrefs(); toast(`펫 말하기: ${['조용히', '가끔', '보통', '자주', '수다쟁이'][prefs.talk]}`); }],
-      ['정', prefs.still ? '돌아다니게 하기' : '가만히 있기', () => { prefs.still = !prefs.still; savePrefs(); if (prefs.still) { pets.me.state = 'idle'; if (pets.partner) pets.partner.state = 'idle'; } toast(prefs.still ? '펫이 가만히 있어요' : '펫이 다시 돌아다녀요'); }],
+      ['↕', tr('크기: {s}', { s: tr(SIZE_LABEL[prefs.size] || '보통') }), () => setSize(SIZE_ORDER[(SIZE_ORDER.indexOf(prefs.size) + 1) % SIZE_ORDER.length])],
+      ['말', tr('말하기: {s}', { s: tr(['조용히', '가끔', '보통', '자주', '수다쟁이'][prefs.talk]) }), () => { prefs.talk = (prefs.talk + 1) % 5; savePrefs(); toast(tr('펫 말하기: {s}', { s: tr(['조용히', '가끔', '보통', '자주', '수다쟁이'][prefs.talk]) })); }],
+      ['정', prefs.still ? '돌아다니게 하기' : '가만히 있기', () => { prefs.still = !prefs.still; savePrefs(); if (prefs.still) { pets.me.state = 'idle'; if (pets.partner) pets.partner.state = 'idle'; } toast(tr(prefs.still ? '펫이 가만히 있어요' : '펫이 다시 돌아다녀요')); }],
       ['⚙', '내 펫 · 이름 바꾸기', () => $('menuBtn').onclick()],
       ['집', '방 꾸미기 · 상점', openShop],
       ...(roomItems.length ? [['✥', '가구 옮기기', () => setDecor(true)]] : []),
@@ -1336,10 +1866,10 @@ function openFeatures() {
     ]],
   ];
   for (const [title, items] of sections) {
-    const h = document.createElement('h4'); h.textContent = title; grid.append(h);
+    const h = document.createElement('h4'); h.textContent = tr(title); grid.append(h);
     for (const [icon, label, fn, cls] of items) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'feat' + (cls ? ' ' + cls : '');
-      const i = document.createElement('i'); i.textContent = icon; const sp = document.createElement('span'); sp.textContent = label;
+      const i = document.createElement('i'); i.textContent = iconTx(icon); const sp = document.createElement('span'); sp.textContent = tr(label);
       b.append(i, sp);
       b.disabled = !paired && title !== '화면';
       b.onclick = () => { $('featDlg').hidden = true; fn(); };
@@ -1364,12 +1894,12 @@ stage.addEventListener('click', e => {
 function singleClick(e) {
   const gy = groundY();
   const pi = poops.findIndex(o => Math.abs(e.clientX - o.x) < 24 * SC && e.clientY > gy - 40 * SC && e.clientY < gy + 8);
-  if (pi >= 0 && !petAt(e.clientX, e.clientY)) { const o = poops.splice(pi, 1)[0]; spawnHearts(o.x, gy - 30 * SC, 3, false); if (pets.me) say(pets.me, '깨끗해졌다!', 1.8); return; }
+  if (pi >= 0 && !petAt(e.clientX, e.clientY)) { const o = poops.splice(pi, 1)[0]; spawnHearts(o.x, gy - 30 * SC, 3, false); if (pets.me) say(pets.me, tr('깨끗해졌다!'), 1.8); return; }
   const p = petAt(e.clientX, e.clientY); if (!p || scene || p.fly) return;
   if (p.role === 'me') {
     const head = e.clientY < gy - p.hop * SC - HEIGHT[p.kind] * SC * .55;
     jump(p, head ? 220 : 360); p.react = now() + 1.2;
-    say(p, head ? ['쓰담쓰담 좋아', '헤헤', '더 해 줘!'][Math.floor(Math.random() * 3)] : ['간지러워!', '꺄르르', '거긴 안 돼!'][Math.floor(Math.random() * 3)], 1.8);
+    say(p, tr(head ? ['쓰담쓰담 좋아', '헤헤', '더 해 줘!'][Math.floor(Math.random() * 3)] : ['간지러워!', '꺄르르', '거긴 안 돼!'][Math.floor(Math.random() * 3)]), 1.8);
     spawnHearts(p.x, gy - HEIGHT[p.kind] * SC, 3, false); return;
   }
   if (notes.length) { openNote(); return; }
@@ -1382,7 +1912,7 @@ function singleClick(e) {
 let popTarget = null;
 $('popKiss').onclick = () => { $('pop').hidden = true; sendEvent('kiss'); };
 $('popPoke').onclick = () => { $('pop').hidden = true; if (mode === 'group') gSend('poke', popTarget && popTarget.owner); else sendEvent('poke'); };
-$('popRide').onclick = () => { $('pop').hidden = true; if (!rideOn(pets.me, popTarget)) toast('지금은 올라갈 수 없어요'); };
+$('popRide').onclick = () => { $('pop').hidden = true; if (!rideOn(pets.me, popTarget)) toast(tr('지금은 올라갈 수 없어요')); };
 
 /* =================== picture-in-picture =================== */
 const pipCanvas = document.createElement('canvas'); pipCanvas.width = 480; pipCanvas.height = 300;
@@ -1429,9 +1959,9 @@ function launchDesktop() {
   location.href = 'uripet://open';
   setTimeout(() => {
     window.removeEventListener('blur', onBlur);
-    if (left) { toast('PC 앱을 열었어요. 바탕화면 아래에서 펫이 걸어 다녀요', 5); return; }
-    if (/Windows/.test(navigator.userAgent)) { toast('PC 앱이 아직 없어서 설치 파일을 내려받아요. 받은 파일을 열면 바탕화면에 펫이 나타나요', 6); location.href = INSTALLER; }
-    else toast('바탕화면 펫은 지금 Windows에서만 돼요. Mac 앱은 준비 중이에요', 5);
+    if (left) { toast(tr('PC 앱을 열었어요. 바탕화면 아래에서 펫이 걸어 다녀요'), 5); return; }
+    if (/Windows/.test(navigator.userAgent)) { toast(tr('PC 앱이 아직 없어서 설치 파일을 내려받아요. 받은 파일을 열면 바탕화면에 펫이 나타나요'), 6); location.href = INSTALLER; }
+    else toast(tr('바탕화면 펫은 지금 Windows에서만 돼요. Mac 앱은 준비 중이에요'), 5);
   }, 1500);
 }
 $('pipBtn').onclick = () => {
@@ -1446,23 +1976,23 @@ function pipSupported() {
 }
 function openPipDialog() {
   $('pipDlg').hidden = false;
-  if (!pipSupported()) { $('pipMsg').textContent = '이 브라우저에서는 떠 있는 창이 안 돼요. 아이패드 · 아이폰은 Safari로 열어 주세요 (카카오톡 안에서 열었다면 "다른 브라우저로 열기").'; $('pipMsg').className = 'msg err'; $('pipGo').disabled = true; return; }
+  if (!pipSupported()) { $('pipMsg').textContent = tr('이 브라우저에서는 떠 있는 창이 안 돼요. 아이패드 · 아이폰은 Safari로 열어 주세요 (카카오톡 안에서 열었다면 "다른 브라우저로 열기").'); $('pipMsg').className = 'msg err'; $('pipGo').disabled = true; return; }
   const ready = () => {
     pipVideo.srcObject = null; if (pipVideo.src !== loopURL) pipVideo.src = loopURL; pipVideo.loop = true; pipVideo.muted = true;
     pipVideo.play().catch(() => {});
     $('pipMsg').textContent = ''; $('pipGo').disabled = false;
   };
   if (loopURL && loopKey === petsKey()) { ready(); return; }
-  $('pipGo').disabled = true; $('pipMsg').className = 'msg'; $('pipMsg').textContent = '두 펫 영상을 준비하는 중이에요… (4초)';
-  prepareLoop(ok => { if (ok) ready(); else { $('pipMsg').textContent = '영상을 만들지 못했어요. Safari를 최신 버전으로 업데이트해 주세요.'; $('pipMsg').className = 'msg err'; } });
+  $('pipGo').disabled = true; $('pipMsg').className = 'msg'; $('pipMsg').textContent = tr('두 펫 영상을 준비하는 중이에요… (4초)');
+  prepareLoop(ok => { if (ok) ready(); else { $('pipMsg').textContent = tr('영상을 만들지 못했어요. Safari를 최신 버전으로 업데이트해 주세요.'); $('pipMsg').className = 'msg err'; } });
 }
 $('pipGo').onclick = () => {
   /* must be called right inside the tap, with a visible, playing video — Safari's rule */
   try {
     if (typeof pipVideo.webkitSetPresentationMode === 'function' && pipVideo.webkitSupportsPresentationMode('picture-in-picture')) pipVideo.webkitSetPresentationMode('picture-in-picture');
-    else pipVideo.requestPictureInPicture().catch(e => { $('pipMsg').textContent = '띄우지 못했어요: ' + e.message; $('pipMsg').className = 'msg err'; });
+    else pipVideo.requestPictureInPicture().catch(e => { $('pipMsg').textContent = tr('띄우지 못했어요: {e}', { e: e.message }); $('pipMsg').className = 'msg err'; });
     setTimeout(() => { $('pipDlg').hidden = true; }, 600);
-  } catch (e) { $('pipMsg').textContent = '띄우지 못했어요: ' + (e.message || e); $('pipMsg').className = 'msg err'; }
+  } catch (e) { $('pipMsg').textContent = tr('띄우지 못했어요: {e}', { e: e.message || e }); $('pipMsg').className = 'msg err'; }
 };
 pipVideo.addEventListener('leavepictureinpicture', () => { pipOn = false; });
 
@@ -1508,48 +2038,48 @@ let mode = 'couple', group = null, groupChannel = null, coupleItemsSaved = [], p
 const roomKey = () => mode === 'group' && group ? 'g:' + group.id : 'c';
 const activeChannel = () => mode === 'group' ? groupChannel : roomChannel;
 const T = () => mode === 'group' ? { table: 'group_items', fk: 'group_id', id: group.id } : { table: 'room_items', fk: 'couple_id', id: couple.id };
-const nameOf = id => id === uid ? me.nickname : ((petByOwner(id) || {}).name || (group && (group.people.find(x => x.id === id) || {}).nickname) || '친구');
+const nameOf = id => id === uid ? me.nickname : ((petByOwner(id) || {}).name || (group && (group.people.find(x => x.id === id) || {}).nickname) || tr('친구'));
 
 async function openRooms() {
   $('more').hidden = true; $('roomsMsg').textContent = '';
   const box = $('roomList'); box.replaceChildren();
   const add = (label, sub, on, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'room-btn' + (on ? ' on' : ''); const l = document.createElement('span'); l.textContent = label; const sm = document.createElement('small'); sm.textContent = sub; b.append(l, sm); b.onclick = fn; box.append(b); };
-  if (couple && couple.member_b) add(`우리 둘 · ${(partner || {}).nickname || '짝꿍'}`, '커플방', mode === 'couple', () => { $('roomsDlg').hidden = true; backToCouple(); });
+  if (couple && couple.member_b) add(tr('우리 둘 · {name}', { name: (partner || {}).nickname || tr('짝꿍') }), tr('커플방'), mode === 'couple', () => { $('roomsDlg').hidden = true; backToCouple(); });
   const { data, error } = await sb.rpc('my_groups');
-  if (error) { $('roomsMsg').textContent = /function|schema/.test(error.message) ? '서버 업데이트가 필요해요 (007_groups.sql 실행)' : error.message; $('roomsMsg').className = 'msg err'; }
-  for (const gr of data || []) add(gr.name, `모임 · ${gr.members}/8명`, mode === 'group' && group && group.id === gr.id, () => { $('roomsDlg').hidden = true; enterGroup(gr.id); });
+  if (error) { $('roomsMsg').textContent = /function|schema/.test(error.message) ? tr('서버 업데이트가 필요해요 (007_groups.sql 실행)') : error.message; $('roomsMsg').className = 'msg err'; }
+  for (const gr of data || []) add(gr.name, tr('모임 · {n}/8명', { n: gr.members }), mode === 'group' && group && group.id === gr.id, () => { $('roomsDlg').hidden = true; enterGroup(gr.id); });
   $('groupInfo').hidden = !(mode === 'group' && group);
   if (mode === 'group' && group) {
     $('groupCode').textContent = group.code; $('leaveGroupBox').hidden = false; $('leaveGroupConfirm').hidden = true;
     const ml = $('memberList'); ml.replaceChildren();
-    for (const pp of group.people) { const d = document.createElement('div'); d.className = 'member'; const dot = document.createElement('span'); dot.className = 'dot' + (pp.id === uid || (petByOwner(pp.id) || {}).online ? ' on' : ''); const n = document.createElement('span'); n.textContent = pp.id === uid ? `${pp.nickname} (나)` : pp.nickname; d.append(dot, n); ml.append(d); }
+    for (const pp of group.people) { const d = document.createElement('div'); d.className = 'member'; const dot = document.createElement('span'); dot.className = 'dot' + (pp.id === uid || (petByOwner(pp.id) || {}).online ? ' on' : ''); const n = document.createElement('span'); n.textContent = pp.id === uid ? tr('{name} (나)', { name: pp.nickname }) : pp.nickname; d.append(dot, n); ml.append(d); }
   }
   $('roomsDlg').hidden = false;
 }
 $('who').onclick = openRooms;
-$('copyGroupCode').onclick = async () => { try { await navigator.clipboard.writeText(group.code); toast(`모임 코드 ${group.code}를 복사했어요`); } catch (e) { toast('코드를 길게 눌러 복사해 주세요'); } };
+$('copyGroupCode').onclick = async () => { try { await navigator.clipboard.writeText(group.code); toast(tr('모임 코드 {code}를 복사했어요', { code: group.code })); } catch (e) { toast(tr('코드를 길게 눌러 복사해 주세요')); } };
 $('groupJoinCode').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
 $('createGroupForm').addEventListener('submit', async e => {
   e.preventDefault();
   const { data, error } = await sb.rpc('create_group', { group_name: $('groupName').value.trim() });
-  if (error) { $('roomsMsg').textContent = /too many/.test(error.message) ? '모임은 5개까지 들어갈 수 있어요' : /function|schema/.test(error.message) ? '서버 업데이트가 필요해요 (007_groups.sql 실행)' : '만들지 못했어요: ' + error.message; $('roomsMsg').className = 'msg err'; return; }
+  if (error) { $('roomsMsg').textContent = /too many/.test(error.message) ? tr('모임은 5개까지 들어갈 수 있어요') : /function|schema/.test(error.message) ? tr('서버 업데이트가 필요해요 (007_groups.sql 실행)') : tr('만들지 못했어요: {e}', { e: error.message }); $('roomsMsg').className = 'msg err'; return; }
   $('groupName').value = ''; $('roomsDlg').hidden = true; await enterGroup(data.id);
-  toast(`모임을 만들었어요! 코드 ${data.code}를 친구들에게 알려 주세요`, 6);
+  toast(tr('모임을 만들었어요! 코드 {code}를 친구들에게 알려 주세요', { code: data.code }), 6);
 });
 $('joinGroupForm').addEventListener('submit', async e => {
   e.preventDefault();
   const { data, error } = await sb.rpc('join_group', { invite: $('groupJoinCode').value.trim() });
-  if (error) { $('roomsMsg').textContent = /invalid/.test(error.message) ? '코드가 맞지 않아요' : /full/.test(error.message) ? '이 모임은 이미 8명이 꽉 찼어요' : /too many/.test(error.message) ? '모임은 5개까지 들어갈 수 있어요' : '들어가지 못했어요: ' + error.message; $('roomsMsg').className = 'msg err'; return; }
+  if (error) { $('roomsMsg').textContent = /invalid/.test(error.message) ? tr('코드가 맞지 않아요') : /full/.test(error.message) ? tr('이 모임은 이미 8명이 꽉 찼어요') : /too many/.test(error.message) ? tr('모임은 5개까지 들어갈 수 있어요') : tr('들어가지 못했어요: {e}', { e: error.message }); $('roomsMsg').className = 'msg err'; return; }
   $('groupJoinCode').value = ''; $('roomsDlg').hidden = true; await enterGroup(data);
 });
 $('leaveGroupBtn').onclick = () => { $('leaveGroupBox').hidden = true; $('leaveGroupConfirm').hidden = false; };
 $('leaveGroupNo').onclick = () => { $('leaveGroupBox').hidden = false; $('leaveGroupConfirm').hidden = true; };
-$('leaveGroupYes').onclick = async () => { const gid = group.id; await sb.rpc('leave_group', { gid }); $('roomsDlg').hidden = true; backToCouple(); toast('모임에서 나왔어요'); };
+$('leaveGroupYes').onclick = async () => { const gid = group.id; await sb.rpc('leave_group', { gid }); $('roomsDlg').hidden = true; backToCouple(); toast(tr('모임에서 나왔어요')); };
 
 async function enterGroup(gid) {
   const [{ data: people, error }, { data: gs }] = await Promise.all([sb.rpc('group_people', { gid }), sb.rpc('my_groups')]);
   const g = (gs || []).find(x => x.id === gid);
-  if (error || !g) { toast('모임을 열지 못했어요' + (error ? ': ' + error.message : '')); return; }
+  if (error || !g) { toast(tr('모임을 열지 못했어요') + (error ? ': ' + error.message : '')); return; }
   if (mode === 'couple') { partnerSaved = pets.partner; coupleItemsSaved = roomItems; }
   if (groupChannel) { sb.removeChannel(groupChannel); groupChannel = null; }
   scene = null; mode = 'group'; group = { id: gid, name: g.name, code: g.code, people };
@@ -1571,14 +2101,14 @@ async function enterGroup(gid) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'plans', filter: `group_id=eq.${gid}` }, () => { loadPlans().then(checkPlanAlerts); if (!$('planDlg').hidden) renderPlans(); })
     .on('presence', { event: 'sync' }, () => {
       const st = groupChannel.presenceState();
-      for (const f of pets.others || []) { const was = f.online; f.online = !!st[f.owner]; const info = st[f.owner] && st[f.owner][0]; if (info) { if (info.pet) f.kind = info.pet; if (info.nickname) f.name = info.nickname; } if (!was && f.online) { say(f, '왔어!', 2); jump(f, 280); } }
+      for (const f of pets.others || []) { const was = f.online; f.online = !!st[f.owner]; const info = st[f.owner] && st[f.owner][0]; if (info) { if (info.pet) f.kind = info.pet; if (info.nickname) f.name = info.nickname; } if (!was && f.online) { say(f, tr('왔어!'), 2); jump(f, 280); } }
       renderWho();
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_events', filter: `group_id=eq.${gid}` }, ({ new: ev }) => { if (ev.sender !== uid) gReceive(ev); else if (ev.kind.startsWith('lunch') && !$('voteDlg').hidden) renderVote(); })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_items', filter: `group_id=eq.${gid}` }, ({ new: it }) => { if (!roomItems.some(i => i.id === it.id)) roomItems.push(it); })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_items', filter: `group_id=eq.${gid}` }, ({ new: it }) => { const i = roomItems.find(x => x.id === it.id); if (i && !(decorDrag && decorDrag.it === i)) i.x = it.x; })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'group_items' }, ({ old }) => { roomItems = roomItems.filter(i => i.id !== old.id); })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${gid}` }, async () => { const { data } = await sb.rpc('group_people', { gid }); if (data && group && group.id === gid) { const before = group.people.length; group.people = data; syncFriends(); renderWho(); if (data.length > before) toast(`${data[data.length - 1].nickname} 님이 모임에 들어왔어요`); } })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${gid}` }, async () => { const { data } = await sb.rpc('group_people', { gid }); if (data && group && group.id === gid) { const before = group.people.length; group.people = data; syncFriends(); renderWho(); if (data.length > before) toast(tr('{name} 님이 모임에 들어왔어요', { name: data[data.length - 1].nickname })); } })
     .subscribe(async st => { if (st === 'SUBSCRIBED') await groupChannel.track({ nickname: me.nickname, pet: me.pet }); });
 }
 function syncFriends() {
@@ -1600,44 +2130,44 @@ function backToCouple() {
 }
 function pickFriend(title, cb) {
   const fr = pets.others || [];
-  if (!fr.length) { toast('아직 모임에 친구가 없어요. 모임 코드를 알려 주세요'); return; }
+  if (!fr.length) { toast(tr('아직 모임에 친구가 없어요. 모임 코드를 알려 주세요')); return; }
   $('pickTitle').textContent = title; const box = $('pickGrid'); box.replaceChildren();
   for (const f of fr) { const b = document.createElement('button'); b.type = 'button'; b.className = 'feat'; const i = document.createElement('i'); i.textContent = f.online ? '●' : '○'; const sp = document.createElement('span'); sp.textContent = f.name; b.append(i, sp); b.onclick = () => { $('pickDlg').hidden = true; cb(f); }; box.append(b); }
   $('pickDlg').hidden = false;
 }
 async function gSend(kind, target = null, payload = null) {
   if (!group) return false;
-  if (kind === 'poke') { jump(pets.me, 300); say(pets.me, '콕!', 1.6); const t = petByOwner(target); if (t) { jump(t, 360); t.react = now() + 1.5; } }
+  if (kind === 'poke') { jump(pets.me, 300); say(pets.me, tr('콕!'), 1.6); const t = petByOwner(target); if (t) { jump(t, 360); t.react = now() + 1.5; } }
   else if (kind === 'msg') say(pets.me, shortText(payload.text), 5);
-  else if (kind === 'doodle') { say(pets.me, '쪽지 보냈어!', 2.5); jump(pets.me, 280); }
-  else if (kind === 'poop') poopAll(pets.me, '다 같이 싸자!');
+  else if (kind === 'doodle') { say(pets.me, tr('쪽지 보냈어!'), 2.5); jump(pets.me, 280); }
+  else if (kind === 'poop') poopAll(pets.me, tr('다 같이 싸자!'));
   const row = { group_id: group.id, sender: uid, kind }; if (target) row.target = target; if (payload) row.payload = payload;
   const { error } = await sb.from('group_events').insert(row);
-  if (error) { toast('보내지 못했어요: ' + error.message, 5); return false; }
+  if (error) { toast(tr('보내지 못했어요: {e}', { e: error.message }), 5); return false; }
   return true;
 }
 function poopAll(first, line) {
   doPoop(first, 0, line);
-  allPets().filter(q => q !== first).forEach((q, i) => doPoop(q, 900 + i * 450, i % 2 ? '나도!' : '같이 싸!'));
+  allPets().filter(q => q !== first).forEach((q, i) => doPoop(q, 900 + i * 450, tr(i % 2 ? '나도!' : '같이 싸!')));
 }
 function gReceive(ev) {
   const sp = petByOwner(ev.sender), who = nameOf(ev.sender), pl = ev.payload || {};
   if (ev.kind === 'poke') {
-    if (ev.target === uid) { if (sp) { jump(sp, 360); say(sp, '콕!', 2); } jump(pets.me, 300); say(pets.me, `${josa(who, '이', '가')} 콕 찔렀어!`, 3); toast(`${josa(who, '이', '가')} 나를 콕 찔렀어요`, 3.5); }
-    else { const t = petByOwner(ev.target); if (sp) say(sp, `${t ? t.name : ''} 콕!`, 2); if (t) { jump(t, 320); t.react = now() + 1.2; } }
+    if (ev.target === uid) { if (sp) { jump(sp, 360); say(sp, tr('콕!'), 2); } jump(pets.me, 300); say(pets.me, tr('{who} 콕 찔렀어!', { who: josa(who, '이', '가') }), 3); toast(tr('{who} 나를 콕 찔렀어요', { who: josa(who, '이', '가') }), 3.5); }
+    else { const t = petByOwner(ev.target); if (sp) say(sp, tr('{name} 콕!', { name: t ? t.name : '' }), 2); if (t) { jump(t, 320); t.react = now() + 1.2; } }
   } else if (ev.kind === 'msg' && pl.text) { if (sp) { say(sp, shortText(pl.text), 8); jump(sp, 260); } toast(`${who}: ${shortText(pl.text, 40)}`, 5); appendMsg(pl.text, false, ev.created_at, who); }
-  else if (ev.kind === 'doodle' && pl.img) { notes.push({ img: pl.img, at: ev.created_at, from: who }); if (sp) say(sp, '쪽지 왔어! 나를 눌러 봐', 6); toast(`${josa(who, '이', '가')} 낙서 쪽지를 보냈어요`, 4); }
-  else if (ev.kind === 'poop') { poopAll(sp || pets.me, null); toast(`${josa(who, '이', '가')} 다 같이 똥 싸재요`, 3.5); }
+  else if (ev.kind === 'doodle' && pl.img) { notes.push({ img: pl.img, at: ev.created_at, from: who }); if (sp) say(sp, tr('쪽지 왔어! 나를 눌러 봐'), 6); toast(tr('{who} 낙서 쪽지를 보냈어요', { who: josa(who, '이', '가') }), 4); }
+  else if (ev.kind === 'poop') { poopAll(sp || pets.me, null); toast(tr('{who} 다 같이 똥 싸재요', { who: josa(who, '이', '가') }), 3.5); }
   else if (ev.kind === 'focus') { onFocusEvent(pl, ev.sender, josa(who, '이', '가')); }
-  else if (ev.kind === 'lunch_open') { if (sp) say(sp, '점심 투표하자!', 4); toast(`${josa(who, '이', '가')} 점심 투표를 열었어요`, 4); if (!$('voteDlg').hidden) renderVote(); }
+  else if (ev.kind === 'lunch_open') { if (sp) say(sp, tr('점심 투표하자!'), 4); toast(tr('{who} 점심 투표를 열었어요', { who: josa(who, '이', '가') }), 4); if (!$('voteDlg').hidden) renderVote(); }
   else if (ev.kind === 'lunch_vote') { if (!$('voteDlg').hidden) renderVote(); }
 }
 async function openGroupChat() {
-  $('msgTitle').textContent = `${group.name} 단체 메시지`;
+  $('msgTitle').textContent = tr('{name} 단체 메시지', { name: group.name });
   const list = $('msgList'); list.replaceChildren(); $('msgDlg').hidden = false;
   const { data } = await sb.from('group_events').select('sender, payload, created_at').eq('group_id', group.id).eq('kind', 'msg').order('created_at', { ascending: false }).limit(60);
   list.replaceChildren();
-  if (!data || !data.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = '모임에 첫 한마디를 남겨 보세요!'; list.append(p); }
+  if (!data || !data.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = tr('모임에 첫 한마디를 남겨 보세요!'); list.append(p); }
   else for (const m of data.reverse()) if (m.payload && m.payload.text) list.append(msgEl(m.payload.text, m.sender === uid, m.created_at, nameOf(m.sender)));
   list.scrollTop = list.scrollHeight; setTimeout(() => $('msgText').focus(), 50);
 }
@@ -1647,18 +2177,18 @@ async function renderVote() {
   const { data } = await sb.from('group_events').select('id, sender, kind, payload, created_at').eq('group_id', group.id).in('kind', ['lunch_open', 'lunch_vote']).gt('created_at', since).order('created_at', { ascending: false }).limit(300);
   const open = (data || []).find(e => e.kind === 'lunch_open');
   const list = $('voteList'); list.replaceChildren();
-  if (!open) { $('voteInfo').textContent = '아직 열린 투표가 없어요. 새 투표를 열면 메뉴 3개가 나와요.'; return; }
+  if (!open) { $('voteInfo').textContent = tr('아직 열린 투표가 없어요. 새 투표를 열면 메뉴 3개가 나와요.'); return; }
   const votes = new Map();
   for (const e of (data || []).slice().reverse()) if (e.kind === 'lunch_vote' && e.payload && e.payload.vote === open.id) votes.set(e.sender, e.payload.choice);
   const counts = open.payload.options.map((_, i) => [...votes.values()].filter(v => v === i).length), total = votes.size;
-  $('voteInfo').textContent = `${nameOf(open.sender)} 님이 연 투표 · ${total}/${group.people.length}명 참여`;
+  $('voteInfo').textContent = tr('{who} 님이 연 투표 · {total}/{n}명 참여', { who: nameOf(open.sender), total, n: group.people.length });
   open.payload.options.forEach((opt, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-opt' + (votes.get(uid) === i ? ' mine' : '');
     const bar = document.createElement('i'); bar.className = 'bar'; bar.style.width = (total ? counts[i] / total * 100 : 0) + '%';
-    const n = document.createElement('span'); n.textContent = opt; const c = document.createElement('b'); c.textContent = `${counts[i]}표`;
+    const n = document.createElement('span'); n.textContent = tr(opt); const c = document.createElement('b'); c.textContent = tr('{n}표', { n: counts[i] });
     const who = document.createElement('small'); who.textContent = [...votes.entries()].filter(([, v]) => v === i).map(([k]) => nameOf(k)).join(', ');
     b.append(bar, n, c, who);
-    b.onclick = async () => { await gSend('lunch_vote', null, { vote: open.id, choice: i }); say(pets.me, `${opt} 찬성!`, 2); renderVote(); };
+    b.onclick = async () => { await gSend('lunch_vote', null, { vote: open.id, choice: i }); say(pets.me, tr('{menu} 찬성!', { menu: tr(opt) }), 2); renderVote(); };
     list.append(b);
   });
 }
@@ -1666,13 +2196,13 @@ function openVote() { $('voteDlg').hidden = false; renderVote(); }
 $('voteNew').onclick = async () => {
   const all = Object.values(LUNCH).flat(), opts = [];
   while (opts.length < 3) { const m = all[Math.floor(Math.random() * all.length)]; if (!opts.includes(m)) opts.push(m); }
-  if (await gSend('lunch_open', null, { options: opts })) { say(pets.me, '점심 투표하자!', 2.5); renderVote(); }
+  if (await gSend('lunch_open', null, { options: opts })) { say(pets.me, tr('점심 투표하자!'), 2.5); renderVote(); }
 };
 function openGroupFeatures() {
   const grid = $('featGrid'); grid.replaceChildren();
   const sections = [
-    [`${group.name} 친구들에게`, [
-      ['콕', '콕 찌르기', () => pickFriend('누구를 콕 찌를까요?', f => gSend('poke', f.owner))],
+    [tr('{name} 친구들에게', { name: group.name }), [
+      ['콕', '콕 찌르기', () => pickFriend(tr('누구를 콕 찌를까요?'), f => gSend('poke', f.owner))],
       ['말풍', '단체 메시지', openGroupChat],
       ['✎', '낙서 쪽지', openDoodle],
       ['똥', '다 같이 똥 싸기', () => gSend('poop')],
@@ -1680,12 +2210,12 @@ function openGroupFeatures() {
       ['⏱', '같이 집중하기', openFocus],
       ['✓', '모임 할 일', () => openTodos('todo')],
       ['일정', '모임 일정', openPlans],
-      ['↑', '친구 머리 위로 올라가기', () => pickFriend('누구 머리 위로 갈까요?', f => { if (!rideOn(pets.me, f)) toast('지금은 올라갈 수 없어요'); })],
-      ...(notes.length ? [['✉', `받은 쪽지 ${notes.length}장`, openNote, 'love']] : []),
+      ['↑', '친구 머리 위로 올라가기', () => pickFriend(tr('누구 머리 위로 갈까요?'), f => { if (!rideOn(pets.me, f)) toast(tr('지금은 올라갈 수 없어요')); })],
+      ...(notes.length ? [['✉', tr('받은 쪽지 {n}장', { n: notes.length }), openNote, 'love']] : []),
     ]],
     ['나와 펫', [
       ['★', '오늘의 운세', openFortune],
-      ['↕', `크기: ${SIZE_LABEL[prefs.size] || '보통'}`, () => setSize(SIZE_ORDER[(SIZE_ORDER.indexOf(prefs.size) + 1) % SIZE_ORDER.length])],
+      ['↕', tr('크기: {s}', { s: tr(SIZE_LABEL[prefs.size] || '보통') }), () => setSize(SIZE_ORDER[(SIZE_ORDER.indexOf(prefs.size) + 1) % SIZE_ORDER.length])],
       ['집', '모임방 꾸미기', openShop],
       ['⚙', '내 펫 · 이름 바꾸기', () => $('menuBtn').onclick()],
     ]],
@@ -1696,10 +2226,10 @@ function openGroupFeatures() {
     ]],
   ];
   for (const [title, items] of sections) {
-    const h = document.createElement('h4'); h.textContent = title; grid.append(h);
+    const h = document.createElement('h4'); h.textContent = tr(title); grid.append(h);
     for (const [icon, label, fn, cls] of items) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'feat' + (cls ? ' ' + cls : '');
-      const i = document.createElement('i'); i.textContent = icon; const sp = document.createElement('span'); sp.textContent = label; b.append(i, sp);
+      const i = document.createElement('i'); i.textContent = iconTx(icon); const sp = document.createElement('span'); sp.textContent = tr(label); b.append(i, sp);
       b.onclick = () => { $('featDlg').hidden = true; fn(); }; grid.append(b);
     }
   }
@@ -1713,9 +2243,9 @@ function isFocusing(p) { return !!(focus && p && focus.members.has(p.owner) && D
 async function sendFocus(payload) { return mode === 'group' ? gSend('focus', null, payload) : sendEvent('focus', payload); }
 function onFocusEvent(pl, sender, who) {
   if (!pl || !pl.sid) return;
-  if (pl.action === 'start') { focus = { sid: pl.sid, ends: Date.parse(pl.ends), minutes: pl.minutes, members: new Set([sender]), by: sender }; toast(`${who} ${pl.minutes}분 집중을 시작했어요. 같이 할래요?`, 5); renderFocus(); }
-  else if (pl.action === 'join' && focus && focus.sid === pl.sid) { focus.members.add(sender); const sp = petByOwner(sender); if (sp) say(sp, '나도 집중!', 2); renderFocus(); }
-  else if (pl.action === 'stop' && focus && focus.sid === pl.sid) { focus.members.delete(sender); const sp = petByOwner(sender); if (sp) say(sp, '먼저 갈게…', 2); if (!focus.members.size) focus = null; renderFocus(); }
+  if (pl.action === 'start') { focus = { sid: pl.sid, ends: Date.parse(pl.ends), minutes: pl.minutes, members: new Set([sender]), by: sender }; toast(tr('{who} {m}분 집중을 시작했어요. 같이 할래요?', { who, m: pl.minutes }), 5); renderFocus(); }
+  else if (pl.action === 'join' && focus && focus.sid === pl.sid) { focus.members.add(sender); const sp = petByOwner(sender); if (sp) say(sp, tr('나도 집중!'), 2); renderFocus(); }
+  else if (pl.action === 'stop' && focus && focus.sid === pl.sid) { focus.members.delete(sender); const sp = petByOwner(sender); if (sp) say(sp, tr('먼저 갈게…'), 2); if (!focus.members.size) focus = null; renderFocus(); }
 }
 async function loadFocus() {
   focus = null; const sc = scopeRoom(); if (!sc.id) return renderFocus();
@@ -1736,33 +2266,33 @@ function renderFocus() {
   $('focusPill').hidden = !on;
   const mine = on && focus.members.has(uid);
   $('focusClock').hidden = !on; $('focusStartRow').hidden = !!on; $('focusJoinRow').hidden = !on || mine; $('focusStopRow').hidden = !mine;
-  if (!on) { $('focusInfo').textContent = '타이머를 시작하면 펫들이 책상에 앉아요. 같이 끝까지 하면 5분마다 하트 1개 (한 번에 최대 12개, 하루 30개).'; return; }
-  $('focusInfo').textContent = `${[...focus.members].map(nameOfAny).join(', ')} 집중 중 · ${focus.minutes}분`;
+  if (!on) { $('focusInfo').textContent = tr('타이머를 시작하면 펫들이 책상에 앉아요. 같이 끝까지 하면 5분마다 하트 1개 (한 번에 최대 12개, 하루 30개).'); return; }
+  $('focusInfo').textContent = tr('{names} 집중 중 · {m}분', { names: [...focus.members].map(nameOfAny).join(', '), m: focus.minutes });
   const tick = async () => {
     const left = focus ? focus.ends - Date.now() : 0;
-    $('focusPill').textContent = `집중 ${fmtLeft(left)} · ${focus ? focus.members.size : 0}명`; $('focusClock').textContent = fmtLeft(left);
+    $('focusPill').textContent = tr('집중 {t} · {n}명', { t: fmtLeft(left), n: focus ? focus.members.size : 0 }); $('focusClock').textContent = fmtLeft(left);
     if (focus && left <= 0) { const f = focus; focus = null; clearInterval(focusTick); renderFocus(); if (f.members.has(uid)) finishFocus(f); }
   };
   tick(); focusTick = setInterval(tick, 1000);
 }
-const nameOfAny = id => id === uid ? '나' : (partner && id === partner.id ? partner.nickname : nameOf(id));
+const nameOfAny = id => id === uid ? (EN ? 'you' : '나') : (partner && id === partner.id ? partner.nickname : nameOf(id));
 async function finishFocus(f) {
   const together = f.members.size > 1;
-  for (const id of f.members) { const q = petByOwner(id); if (q) { jump(q, 320); q.react = now() + 2; say(q, together ? '같이 해냈다!' : '끝!', 3); } }
+  for (const id of f.members) { const q = petByOwner(id); if (q) { jump(q, 320); q.react = now() + 2; say(q, tr(together ? '같이 해냈다!' : '끝!'), 3); } }
   spawnHearts(pets.me.x, groundY() - 140 * SC, 6);
   const { data, error } = await sb.rpc('focus_reward', { minutes: f.minutes });
-  if (!error && data) { setCoins(data.coins); toast(data.got ? `${f.minutes}분 집중 완료! 하트 +${data.got}` : `${f.minutes}분 집중 완료! (오늘 집중 하트는 다 받았어요)`, 5); }
-  else toast(`${f.minutes}분 집중 완료!`, 4);
+  if (!error && data) { setCoins(data.coins); toast(data.got ? tr('{m}분 집중 완료! 하트 +{n}', { m: f.minutes, n: data.got }) : tr('{m}분 집중 완료! (오늘 집중 하트는 다 받았어요)', { m: f.minutes }), 5); }
+  else toast(tr('{m}분 집중 완료!', { m: f.minutes }), 4);
 }
 function openFocus() { renderFocus(); $('focusDlg').hidden = false; }
 $('focusStartRow').addEventListener('click', async e => {
   const b = e.target.closest('[data-min]'); if (!b) return;
   const minutes = Number(b.dataset.min), sid = Math.random().toString(36).slice(2, 10), ends = new Date(Date.now() + minutes * 60e3).toISOString();
   focus = { sid, ends: Date.parse(ends), minutes, members: new Set([uid]), by: uid }; renderFocus();
-  say(pets.me, '집중 시작!', 2);
+  say(pets.me, tr('집중 시작!'), 2);
   if (!(await sendFocus({ action: 'start', sid, ends, minutes }))) { focus = null; renderFocus(); }
 });
-$('focusJoin').onclick = async () => { if (!focus) return; focus.members.add(uid); renderFocus(); say(pets.me, '나도 집중!', 2); await sendFocus({ action: 'join', sid: focus.sid }); };
+$('focusJoin').onclick = async () => { if (!focus) return; focus.members.add(uid); renderFocus(); say(pets.me, tr('나도 집중!'), 2); await sendFocus({ action: 'join', sid: focus.sid }); };
 $('focusStop').onclick = async () => { if (!focus) return; const sid = focus.sid; focus.members.delete(uid); if (!focus.members.size) focus = null; renderFocus(); await sendFocus({ action: 'stop', sid }); };
 $('focusPill').onclick = openFocus;
 function drawDesk(p, gy, t) {
@@ -1780,40 +2310,40 @@ const scopeRow = () => mode === 'group' ? { group_id: group.id } : { couple_id: 
 const scopeEq = q => mode === 'group' ? q.eq('group_id', group.id) : q.eq('couple_id', couple.id);
 async function openTodos(list) {
   todoList = list; $('tabTodo').setAttribute('aria-pressed', list === 'todo'); $('tabBucket').setAttribute('aria-pressed', list === 'bucket');
-  $('todoTitle').textContent = mode === 'group' ? `${group.name} 할 일` : '같이 쓰는 할 일';
-  $('todoText').placeholder = list === 'todo' ? '예: 장보기, 과제 제출' : '예: 바다 보러 가기, 커플 사진 찍기';
+  $('todoTitle').textContent = mode === 'group' ? tr('{name} 할 일', { name: group.name }) : tr('같이 쓰는 할 일');
+  $('todoText').placeholder = tr(list === 'todo' ? '예: 장보기, 과제 제출' : '예: 바다 보러 가기, 커플 사진 찍기');
   $('todoDlg').hidden = false; await loadTodos(); renderTodos();
 }
 async function loadTodos() {
   const { data, error } = await scopeEq(sb.from('todos').select('*')).order('created_at');
-  if (error) { todos = []; $('todoList').textContent = /todos|schema/.test(error.message) ? '서버 업데이트가 필요해요 (008_together.sql 실행)' : error.message; return; }
+  if (error) { todos = []; $('todoList').textContent = /todos|schema/.test(error.message) ? tr('서버 업데이트가 필요해요 (008_together.sql 실행)') : error.message; return; }
   todos = data || [];
 }
 function renderTodos() {
   const box = $('todoList'); box.replaceChildren();
   const list = todos.filter(t => t.list === todoList).sort((a, b) => (a.done - b.done) || (a.created_at < b.created_at ? -1 : 1));
-  if (!list.length) { const p = document.createElement('p'); p.className = 'note-sm'; p.textContent = todoList === 'todo' ? '같이 할 일을 적어 보세요.' : '둘이 해 보고 싶은 걸 모아 보세요.'; box.append(p); return; }
+  if (!list.length) { const p = document.createElement('p'); p.className = 'note-sm'; p.textContent = tr(todoList === 'todo' ? '같이 할 일을 적어 보세요.' : '둘이 해 보고 싶은 걸 모아 보세요.'); box.append(p); return; }
   for (const t of list) {
     const row = document.createElement('label'); row.className = 'todo' + (t.done ? ' done' : '');
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = t.done;
-    cb.onchange = async () => { const done = cb.checked; t.done = done; renderTodos(); const { error } = await sb.from('todos').update({ done, done_by: done ? uid : null, done_at: done ? new Date().toISOString() : null }).eq('id', t.id); if (error) toast('저장하지 못했어요: ' + error.message); else if (done) celebrateTodo(t, uid); };
-    const tx = document.createElement('span'); tx.className = 't'; const main = document.createElement('span'); main.textContent = t.text; const sm = document.createElement('small'); sm.textContent = t.done ? `${nameOfAny(t.done_by)} 완료` : `${nameOfAny(t.created_by)} 추가`; tx.append(main, sm);
-    const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '×'; del.setAttribute('aria-label', '지우기');
+    cb.onchange = async () => { const done = cb.checked; t.done = done; renderTodos(); const { error } = await sb.from('todos').update({ done, done_by: done ? uid : null, done_at: done ? new Date().toISOString() : null }).eq('id', t.id); if (error) toast(tr('저장하지 못했어요: {e}', { e: error.message })); else if (done) celebrateTodo(t, uid); };
+    const tx = document.createElement('span'); tx.className = 't'; const main = document.createElement('span'); main.textContent = t.text; const sm = document.createElement('small'); sm.textContent = t.done ? tr('{who} 완료', { who: nameOfAny(t.done_by) }) : tr('{who} 추가', { who: nameOfAny(t.created_by) }); tx.append(main, sm);
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '×'; del.setAttribute('aria-label', tr('지우기'));
     del.onclick = async e => { e.preventDefault(); todos = todos.filter(x => x !== t); renderTodos(); await sb.from('todos').delete().eq('id', t.id); };
     row.append(cb, tx, del); box.append(row);
   }
 }
 function celebrateTodo(t, by) {
   for (const q of allPets()) { jump(q, 300); q.react = now() + 1.6; }
-  const who = petByOwner(by); if (who) say(who, '해냈다!', 2.5);
-  const other = allPets().find(q => q.owner !== by); if (other) say(other, '축하해!', 2.5);
+  const who = petByOwner(by); if (who) say(who, tr('해냈다!'), 2.5);
+  const other = allPets().find(q => q.owner !== by); if (other) say(other, tr('축하해!'), 2.5);
   spawnHearts((pets.me.x + (other ? other.x : pets.me.x)) / 2, groundY() - 140 * SC, 6);
-  if (by !== uid) toast(`${josa(nameOfAny(by), '이', '가')} '${shortText(t.text, 20)}' 완료!`, 4);
+  if (by !== uid) toast(tr("{who} '{text}' 완료!", { who: josa(nameOfAny(by), '이', '가'), text: shortText(t.text, 20) }), 4);
 }
 function onTodoChange(p, room) {
   if (room !== roomKey()) return;
   const n = p.new, o = p.old;
-  if (p.eventType === 'INSERT') { if (!todos.some(t => t.id === n.id)) todos.push(n); if (n.created_by !== uid) toast(`${josa(nameOfAny(n.created_by), '이', '가')} '${shortText(n.text, 20)}'을 추가했어요`, 3); }
+  if (p.eventType === 'INSERT') { if (!todos.some(t => t.id === n.id)) todos.push(n); if (n.created_by !== uid) toast(tr("{who} '{text}'을 추가했어요", { who: josa(nameOfAny(n.created_by), '이', '가'), text: shortText(n.text, 20) }), 3); }
   else if (p.eventType === 'UPDATE') { const t = todos.find(x => x.id === n.id); const was = t ? t.done : false; if (t) Object.assign(t, n); else todos.push(n); if (n.done && !was && n.done_by !== uid) celebrateTodo(n, n.done_by); }
   else if (p.eventType === 'DELETE') todos = todos.filter(t => t.id !== o.id);
   if (!$('todoDlg').hidden) renderTodos();
@@ -1823,8 +2353,8 @@ $('tabBucket').onclick = () => openTodos('bucket');
 $('todoForm').addEventListener('submit', async e => {
   e.preventDefault(); const text = $('todoText').value.trim(); if (!text) return;
   const { data, error } = await sb.from('todos').insert({ ...scopeRow(), list: todoList, text, created_by: uid }).select().single();
-  if (error) { toast(/todos|schema/.test(error.message) ? '서버 업데이트가 필요해요 (008_together.sql 실행)' : '추가하지 못했어요: ' + error.message, 5); return; }
-  $('todoText').value = ''; if (!todos.some(t => t.id === data.id)) todos.push(data); renderTodos(); say(pets.me, todoList === 'bucket' ? '꼭 같이 하자!' : '적어 뒀어!', 2);
+  if (error) { toast(/todos|schema/.test(error.message) ? tr('서버 업데이트가 필요해요 (008_together.sql 실행)') : tr('추가하지 못했어요: {e}', { e: error.message }), 5); return; }
+  $('todoText').value = ''; if (!todos.some(t => t.id === data.id)) todos.push(data); renderTodos(); say(pets.me, tr(todoList === 'bucket' ? '꼭 같이 하자!' : '적어 뒀어!'), 2);
 });
 
 /* =================== plans & anniversaries =================== */
@@ -1843,13 +2373,13 @@ function nextDate(pl) {
 function renderPlans() {
   const box = $('planList'); box.replaceChildren();
   const list = plans.map(pl => ({ pl, ...nextDate(pl) })).filter(x => x.days >= 0).sort((a, b) => a.days - b.days);
-  if (!list.length) { const p = document.createElement('p'); p.className = 'note-sm'; p.textContent = '아직 적어 둔 일정이 없어요.'; box.append(p); return; }
+  if (!list.length) { const p = document.createElement('p'); p.className = 'note-sm'; p.textContent = tr('아직 적어 둔 일정이 없어요.'); box.append(p); return; }
   const KIND = { date: '데이트', birthday: '생일', anniv: '기념일', etc: '일정' };
   for (const { pl, dt, days } of list) {
     const row = document.createElement('div'); row.className = 'todo';
-    const when = document.createElement('span'); when.className = 'when'; when.textContent = days === 0 ? '오늘' : days === 1 ? '내일' : `D-${days}`;
-    const tx = document.createElement('span'); tx.className = 't'; const main = document.createElement('span'); main.textContent = pl.title; const sm = document.createElement('small'); sm.textContent = `${KIND[pl.kind]} · ${dt.getMonth() + 1}월 ${dt.getDate()}일`; tx.append(main, sm);
-    const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '×'; del.setAttribute('aria-label', '지우기');
+    const when = document.createElement('span'); when.className = 'when'; when.textContent = days === 0 ? tr('오늘') : days === 1 ? tr('내일') : `D-${days}`;
+    const tx = document.createElement('span'); tx.className = 't'; const main = document.createElement('span'); main.textContent = pl.title; const sm = document.createElement('small'); sm.textContent = `${tr(KIND[pl.kind])} · ${md(dt)}`; tx.append(main, sm);
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '×'; del.setAttribute('aria-label', tr('지우기'));
     del.onclick = async () => { plans = plans.filter(x => x !== pl); renderPlans(); await sb.from('plans').delete().eq('id', pl.id); };
     row.append(when, tx, del); box.append(row);
   }
@@ -1860,8 +2390,8 @@ $('planForm').addEventListener('submit', async e => {
   const kind = $('planKind').value, row = { ...scopeRow(), title: $('planTitle').value.trim(), day: $('planDay').value, kind, yearly: kind === 'birthday' || kind === 'anniv', created_by: uid };
   if (!row.title || !row.day) return;
   const { data, error } = await sb.from('plans').insert(row).select().single();
-  if (error) { toast(/plans|schema/.test(error.message) ? '서버 업데이트가 필요해요 (008_together.sql 실행)' : '추가하지 못했어요: ' + error.message, 5); return; }
-  $('planTitle').value = ''; $('planDay').value = ''; plans.push(data); renderPlans(); say(pets.me, '기억해 둘게!', 2);
+  if (error) { toast(/plans|schema/.test(error.message) ? tr('서버 업데이트가 필요해요 (008_together.sql 실행)') : tr('추가하지 못했어요: {e}', { e: error.message }), 5); return; }
+  $('planTitle').value = ''; $('planDay').value = ''; plans.push(data); renderPlans(); say(pets.me, tr('기억해 둘게!'), 2);
 });
 function checkPlanAlerts() {
   const key = 'uripet-plan-alert-' + roomKey() + '-' + todayKey();
@@ -1872,8 +2402,9 @@ function checkPlanAlerts() {
   try { localStorage.setItem(key, '1'); } catch (e) {}
   const { pl, days } = soon[0];
   setTimeout(() => {
-    if (days === 0) { if (pets.partner) startParty(`오늘 ${pl.title}!`); else { say(pets.me, `오늘 ${pl.title}!`, 5); jump(pets.me, 320); } toast(`오늘은 ${pl.title}`, 5); }
-    else { say(pets.me, `내일 ${pl.title}!`, 6); jump(pets.me, 300); toast(`내일은 ${pl.title}`, 5); }
+    const v = { title: pl.title };
+    if (days === 0) { if (pets.partner) startParty(tr('오늘 {title}!', v)); else { say(pets.me, tr('오늘 {title}!', v), 5); jump(pets.me, 320); } toast(tr('오늘은 {title}', v), 5); }
+    else { say(pets.me, tr('내일 {title}!', v), 6); jump(pets.me, 300); toast(tr('내일은 {title}', v), 5); }
   }, 2500);
 }
 
@@ -1884,16 +2415,16 @@ function startTour() {
   $('featDlg').hidden = true; $('helpDlg').hidden = true;
   const nm = PET_NAME[me.pet];
   tourSteps = [
-    { pet: true, text: `안녕! 나는 ${nm}. 여기서 ${partner && mode === 'couple' ? partner.nickname + '의 펫이랑 ' : ''}같이 살 거야. 나를 집어서 옮기거나 휙 던질 수도 있어!` },
-    { sel: '#kissBtn', text: '뽀뽀를 보내면 짝꿍 화면에서도 두 펫이 쪽!' },
-    { sel: '#msgBtn', text: '메시지를 쓰면 내가 말풍선으로 전해 줄게.' },
-    { sel: '#doodleBtn', text: '그림을 그려 보내면 쪽지를 들고 갈게.' },
-    { sel: '#moreBtn', text: '더보기엔 같이 집중하기, 할 일, 일정, 방 꾸미기가 있어.' },
-    { sel: '#ddayBtn', text: '처음 만난 날을 정하면 D-day를 같이 세.' },
-    { sel: '#who', text: '여기를 누르면 친구들이랑 쓰는 모임방(최대 8명)으로 갈 수 있어.' },
-    { sel: '#coinPill', text: '출석하면 하트 10개, 켜 두면 더 줘! 상점에서 가구를 사.' },
-    { sel: '#menuBtn', text: '설정이야. 다른 기기로 옮길 때 쓰는 이어 쓰기 코드도 여기 있어.' },
-    { pet: true, text: '마지막! 나를 두 번 누르면 모든 기능이 한 번에 나와. 잘 부탁해!' },
+    { pet: true, text: partner && mode === 'couple' ? tr('안녕! 나는 {nm}. 여기서 {p}의 펫이랑 같이 살 거야. 나를 집어서 옮기거나 휙 던질 수도 있어!', { nm, p: partner.nickname }) : tr('안녕! 나는 {nm}. 여기서 같이 살 거야. 나를 집어서 옮기거나 휙 던질 수도 있어!', { nm }) },
+    { sel: '#kissBtn', text: tr('뽀뽀를 보내면 짝꿍 화면에서도 두 펫이 쪽!') },
+    { sel: '#msgBtn', text: tr('메시지를 쓰면 내가 말풍선으로 전해 줄게.') },
+    { sel: '#doodleBtn', text: tr('그림을 그려 보내면 쪽지를 들고 갈게.') },
+    { sel: '#moreBtn', text: tr('더보기엔 같이 집중하기, 할 일, 일정, 방 꾸미기가 있어.') },
+    { sel: '#ddayBtn', text: tr('처음 만난 날을 정하면 D-day를 같이 세.') },
+    { sel: '#who', text: tr('여기를 누르면 친구들이랑 쓰는 모임방(최대 8명)으로 갈 수 있어.') },
+    { sel: '#coinPill', text: tr('출석하면 하트 10개, 켜 두면 더 줘! 상점에서 가구를 사.') },
+    { sel: '#menuBtn', text: tr('설정이야. 다른 기기로 옮길 때 쓰는 이어 쓰기 코드도 여기 있어.') },
+    { pet: true, text: tr('마지막! 나를 두 번 누르면 모든 기능이 한 번에 나와. 잘 부탁해!') },
   ].filter(st => st.pet || (document.querySelector(st.sel) && document.querySelector(st.sel).offsetParent !== null && !document.querySelector(st.sel).hidden));
   tourIdx = 0; $('tour').hidden = false; showTourStep();
 }
@@ -1903,12 +2434,12 @@ function showTourStep() {
   if (st.pet) { const h = (HEIGHT[pets.me.kind] + 20) * SC; r = { left: pets.me.x - 60 * SC, top: groundY() - h, width: 120 * SC, height: h + 10 }; }
   else { const b = document.querySelector(st.sel).getBoundingClientRect(); r = { left: b.left - 6, top: b.top - 6, width: b.width + 12, height: b.height + 12 }; pets.me.dir = (b.left + b.width / 2) > pets.me.x ? 1 : -1; }
   const sp = $('tourSpot'); Object.assign(sp.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
-  $('tourText').textContent = st.text; $('tourNext').textContent = tourIdx === tourSteps.length - 1 ? '시작하기' : `다음 (${tourIdx + 1}/${tourSteps.length})`;
+  $('tourText').textContent = st.text; $('tourNext').textContent = tourIdx === tourSteps.length - 1 ? tr('시작하기') : tr('다음 ({i}/{n})', { i: tourIdx + 1, n: tourSteps.length });
   const card = $('tourCard'), below = r.top + r.height / 2 < innerHeight / 2;
   card.style.top = (below ? Math.min(innerHeight - 170, r.top + r.height + 14) : Math.max(16, r.top - 150)) + 'px';
   say(pets.me, shortText(st.text, 18), 4); jump(pets.me, 220);
 }
-function endTour() { $('tour').hidden = true; try { localStorage.setItem('uripet-help-seen', '1'); } catch (e) {} say(pets.me, '이제 놀자!', 2); }
+function endTour() { $('tour').hidden = true; try { localStorage.setItem('uripet-help-seen', '1'); } catch (e) {} say(pets.me, tr('이제 놀자!'), 2); }
 $('tourNext').onclick = () => { tourIdx++; if (tourIdx >= tourSteps.length) endTour(); else showTourStep(); };
 $('tourSkip').onclick = endTour;
 
@@ -1917,10 +2448,10 @@ let toastTimer = 0;
 function toast(msg, secs = 3) { const el = $('toast'); el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, secs * 1000); }
 function show(id) { for (const s of ['loading', 'setup', 'pair', 'fatal']) $(s).hidden = s !== id; const inRoom = id === null; $('topbar').hidden = !inRoom; $('actions').hidden = !inRoom; }
 function fatal(text, helpHtml = '') { $('fatalText').textContent = text; $('fatalHelp').innerHTML = helpHtml; show('fatal'); }
-function josa(name, a, b) { const c = name.charCodeAt(name.length - 1); if (c < 0xAC00 || c > 0xD7A3) return name + b; return name + ((c - 0xAC00) % 28 ? a : b); }
+function josa(name, a, b) { if (EN) return name; const c = name.charCodeAt(name.length - 1); if (c < 0xAC00 || c > 0xD7A3) return name + b; return name + ((c - 0xAC00) % 28 ? a : b); }
 
 /* =================== supabase =================== */
-if (!window.supabase) { fatal('필요한 파일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.'); return; }
+if (!window.supabase) { fatal(tr('필요한 파일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.')); return; }
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'couple-pet-auth' } });
 let uid = null, me = null, couple = null, partner = null, partnerOnline = false;
 let coupleChannel = null, roomChannel = null;
@@ -1931,15 +2462,15 @@ async function boot() {
   if (!session) {
     const { data, error } = await sb.auth.signInAnonymously();
     if (error) {
-      fatal('서버에 접속하지 못했어요: ' + error.message,
-        /anonymous/i.test(error.message) ? '<p class="help">Supabase에서 익명 로그인을 켜야 해요.<ol><li>Supabase 대시보드 → Authentication → Sign In / Providers</li><li><b>Allow anonymous sign-ins</b> 켜기 → Save</li></ol></p>' : '');
+      fatal(tr('서버에 접속하지 못했어요: {e}', { e: error.message }),
+        /anonymous/i.test(error.message) ? tr('<p class="help">Supabase에서 익명 로그인을 켜야 해요.<ol><li>Supabase 대시보드 → Authentication → Sign In / Providers</li><li><b>Allow anonymous sign-ins</b> 켜기 → Save</li></ol></p>') : '');
       return;
     }
     session = data.session;
   }
   uid = session.user.id;
   const { data: prof, error } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
-  if (error) { fatal('서버 데이터를 읽지 못했어요: ' + error.message, /relation|does not exist|permission/i.test(error.message) ? '<p class="help">Supabase SQL Editor에서 <b>001_init.sql</b>을 먼저 실행해 주세요.</p>' : ''); return; }
+  if (error) { fatal(tr('서버 데이터를 읽지 못했어요: {e}', { e: error.message }), /relation|does not exist|permission/i.test(error.message) ? tr('<p class="help">Supabase SQL Editor에서 <b>001_init.sql</b>을 먼저 실행해 주세요.</p>') : ''); return; }
   me = prof;
   if (!me) { showSetup(); return; }
   await loadCouple();
@@ -1951,7 +2482,7 @@ const setupPicker = buildPicker('petPick', id => { pickedPet = id; }); pickers.p
 function showSetup() { show('setup'); $('nick').focus(); }
 $('setupForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const nickname = $('nick').value.trim(); if (!nickname) { $('setupMsg').textContent = '이름을 적어 주세요.'; return; }
+  const nickname = $('nick').value.trim(); if (!nickname) { $('setupMsg').textContent = tr('이름을 적어 주세요.'); return; }
   $('setupMsg').textContent = '';
   const btn = $('setupForm').querySelector('button[type=submit]'); btn.disabled = true;
   const save = async () => {
@@ -1971,9 +2502,9 @@ $('setupForm').addEventListener('submit', async e => {
   }
   btn.disabled = false;
   if (error) {
-    const m = /rate limit/i.test(error.message) ? '잠시 후 다시 눌러 주세요 (접속이 많아요)'
-      : /Failed to fetch|NetworkError|network/i.test(error.message) ? '인터넷 연결을 확인하고 다시 눌러 주세요'
-      : '저장하지 못했어요: ' + error.message;
+    const m = /rate limit/i.test(error.message) ? tr('잠시 후 다시 눌러 주세요 (접속이 많아요)')
+      : /Failed to fetch|NetworkError|network/i.test(error.message) ? tr('인터넷 연결을 확인하고 다시 눌러 주세요')
+      : tr('저장하지 못했어요: {e}', { e: error.message });
     $('setupMsg').textContent = m; return;
   }
   me = data; await loadCouple();
@@ -1982,7 +2513,7 @@ $('setupForm').addEventListener('submit', async e => {
 /* pairing */
 async function loadCouple() {
   const { data, error } = await sb.from('couples').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) { fatal('짝 정보를 읽지 못했어요: ' + error.message); return; }
+  if (error) { fatal(tr('짝 정보를 읽지 못했어요: {e}', { e: error.message })); return; }
   couple = data;
   if (couple && couple.member_b) { await enterRoom(); return; }
   show('pair');
@@ -2003,21 +2534,21 @@ $('pairGroups').onclick = () => { if (!pets.me) pets.me = makePet('me', me.pet, 
 $('makeCode').onclick = async () => {
   $('pairMsg').textContent = '';
   const { data, error } = await sb.rpc('create_couple');
-  if (error) { $('pairMsg').textContent = '코드를 만들지 못했어요: ' + error.message; $('pairMsg').className = 'msg err'; return; }
+  if (error) { $('pairMsg').textContent = tr('코드를 만들지 못했어요: {e}', { e: error.message }); $('pairMsg').className = 'msg err'; return; }
   await loadCouple();
 };
 $('copyCode').onclick = async () => {
   const text = couple.code;
-  try { await navigator.clipboard.writeText(text); toast(`코드 ${couple.code}를 복사했어요`); } catch (e) { toast('코드를 길게 눌러 복사해 주세요.'); }
+  try { await navigator.clipboard.writeText(text); toast(tr('코드 {code}를 복사했어요', { code: couple.code })); } catch (e) { toast(tr('코드를 길게 눌러 복사해 주세요.')); }
 };
 $('joinCode').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
 $('joinForm').addEventListener('submit', async e => {
   e.preventDefault();
   const code = $('joinCode').value.trim().toUpperCase();
-  if (code.length !== 6) { $('pairMsg').textContent = '코드 6자리를 입력해 주세요.'; $('pairMsg').className = 'msg err'; return; }
+  if (code.length !== 6) { $('pairMsg').textContent = tr('코드 6자리를 입력해 주세요.'); $('pairMsg').className = 'msg err'; return; }
   const { error } = await sb.rpc('join_couple', { invite: code });
   if (error) {
-    const m = /invalid code/.test(error.message) ? '코드가 맞지 않거나 이미 쓰인 코드예요. 다시 확인해 주세요.' : /already paired/.test(error.message) ? '이미 짝이 있어요. 설정에서 짝을 끊은 뒤 다시 해 주세요.' : '연결하지 못했어요: ' + error.message;
+    const m = /invalid code/.test(error.message) ? tr('코드가 맞지 않거나 이미 쓰인 코드예요. 다시 확인해 주세요.') : /already paired/.test(error.message) ? tr('이미 짝이 있어요. 설정에서 짝을 끊은 뒤 다시 해 주세요.') : tr('연결하지 못했어요: {e}', { e: error.message });
     $('pairMsg').textContent = m; $('pairMsg').className = 'msg err'; return;
   }
   await loadCouple();
@@ -2026,7 +2557,7 @@ function watchCouple() {
   if (coupleChannel) sb.removeChannel(coupleChannel);
   coupleChannel = sb.channel('couple-row-' + couple.id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'couples', filter: `id=eq.${couple.id}` }, payload => {
-      if (payload.eventType === 'DELETE') { toast('짝이 끊어졌어요.'); leaveRoom(); loadCouple(); return; }
+      if (payload.eventType === 'DELETE') { toast(tr('짝이 끊어졌어요.')); leaveRoom(); loadCouple(); return; }
       const wasPaired = couple && couple.member_b; couple = payload.new;
       if (!wasPaired && couple.member_b) { enterRoom(); return; }
       renderDday(true);
@@ -2039,7 +2570,7 @@ async function enterRoom() {
   if (pets.me) return;
   const pid = couple.member_a === uid ? couple.member_b : couple.member_a;
   const { data: pp } = await sb.from('profiles').select('*').eq('id', pid).maybeSingle();
-  partner = pp || { id: pid, nickname: '짝꿍', pet: 'chapssal' };
+  partner = pp || { id: pid, nickname: tr('짝꿍'), pet: 'chapssal' };
   pets.me = makePet('me', me.pet, W * .32, uid); pets.partner = makePet('partner', partner.pet, W * .68, partner.id);
   show(null); renderWho(); renderDday(false); watchCouple(); joinRoomChannel(); await catchUp();
   let seenHelp = false; try { seenHelp = !!localStorage.getItem('uripet-help-seen'); localStorage.setItem('uripet-help-seen', '1'); } catch (e) {}
@@ -2052,8 +2583,8 @@ async function enterRoom() {
 }
 function leaveRoom() { if (roomChannel) { sb.removeChannel(roomChannel); roomChannel = null; } pets.me = pets.partner = null; partner = null; scene = null; }
 function renderWho() {
-  if (mode === 'group' && group) { const on = (pets.others || []).filter(p => p.online).length; $('whoText').textContent = `${group.name} · ${on + 1}/${group.people.length}명 접속`; $('dot').classList.toggle('on', on > 0); return; }
-  $('whoText').textContent = partner ? `${partner.nickname} · ${partnerOnline ? '접속 중' : '자리 비움'}` : '';
+  if (mode === 'group' && group) { const on = (pets.others || []).filter(p => p.online).length; $('whoText').textContent = tr('{name} · {on}/{n}명 접속', { name: group.name, on: on + 1, n: group.people.length }); $('dot').classList.toggle('on', on > 0); return; }
+  $('whoText').textContent = partner ? `${partner.nickname} · ${tr(partnerOnline ? '접속 중' : '자리 비움')}` : '';
   $('dot').classList.toggle('on', partnerOnline);
 }
 function joinRoomChannel() {
@@ -2065,7 +2596,7 @@ function joinRoomChannel() {
     .on('broadcast', { event: 'ride' }, ({ payload }) => applyRemoteRide(payload))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'todos', filter: `couple_id=eq.${couple.id}` }, p => onTodoChange(p, 'c'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'plans', filter: `couple_id=eq.${couple.id}` }, () => { if (mode === 'couple') { loadPlans().then(checkPlanAlerts); if (!$('planDlg').hidden) renderPlans(); } })
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_items', filter: `couple_id=eq.${couple.id}` }, ({ new: it }) => { if (!CI().some(i => i.id === it.id)) CI().push(it); if (it.placed_by !== uid && pets.partner) say(pets.partner, `${DECOR[it.item] ? DECOR[it.item].name : '가구'} 놨어!`, 3); })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_items', filter: `couple_id=eq.${couple.id}` }, ({ new: it }) => { if (!CI().some(i => i.id === it.id)) CI().push(it); if (it.placed_by !== uid && pets.partner) say(pets.partner, tr('{name} 놨어!', { name: tr(DECOR[it.item] ? DECOR[it.item].name : '가구') }), 3); })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'room_items', filter: `couple_id=eq.${couple.id}` }, ({ new: it }) => { const i = CI().find(x => x.id === it.id); if (i && !(decorDrag && decorDrag.it === i)) i.x = it.x; })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'room_items' }, ({ old }) => { coupleSet(CI().filter(i => i.id !== old.id)); })
     .on('presence', { event: 'sync' }, () => {
@@ -2076,7 +2607,7 @@ function joinRoomChannel() {
         if (info.nickname && info.nickname !== partner.nickname) partner.nickname = info.nickname;
         if (info.pet && info.pet !== partner.pet) { partner.pet = info.pet; if (pets.partner) pets.partner.kind = info.pet; }
       }
-      if (!was && partnerOnline && pets.partner) { say(pets.partner, '왔어!', 2.5); jump(pets.partner, 300); }
+      if (!was && partnerOnline && pets.partner) { say(pets.partner, tr('왔어!'), 2.5); jump(pets.partner, 300); }
       renderWho();
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events', filter: `couple_id=eq.${couple.id}` }, payload => {
@@ -2086,15 +2617,15 @@ function joinRoomChannel() {
     .subscribe(async status => { if (status === 'SUBSCRIBED') await roomChannel.track({ nickname: me.nickname, pet: me.pet, at: Date.now() }); });
 }
 function receive(kind, payload, at) {
-  if (!pets.partner) { if (partner) toast(`짝꿍방: ${josa(partner.nickname, '이', '가')} ${({ kiss: '뽀뽀했어요', poke: '콕 찔렀어요', msg: '메시지를 보냈어요', doodle: '쪽지를 보냈어요', poop: '같이 똥 싸재요', lunch: '점심 먹재요' })[kind] || '뭔가 보냈어요'}`, 4); return; }
+  if (!pets.partner) { if (partner) toast(tr('짝꿍방: {who} {what}', { who: josa(partner.nickname, '이', '가'), what: EN ? RECV_EN[kind] || 'sent something' : ({ kiss: '뽀뽀했어요', poke: '콕 찔렀어요', msg: '메시지를 보냈어요', doodle: '쪽지를 보냈어요', poop: '같이 똥 싸재요', lunch: '점심 먹재요' })[kind] || '뭔가 보냈어요' }), 4); return; }
   const who = josa(partner.nickname, '이', '가');
-  if (kind === 'lunch' && payload && payload.menu) { say(pets.partner, `${payload.menu} 같이 먹자!`, 6); jump(pets.partner, 300); toast(`${who} 점심으로 ${payload.menu} 먹재요`, 4); }
-  else if (kind === 'doodle' && payload && payload.img) { notes.push({ img: payload.img, at: at || new Date().toISOString() }); say(pets.partner, '쪽지 왔어! 나를 눌러 봐', 6); jump(pets.partner, 320); toast(`${who} 낙서 쪽지를 보냈어요`, 4); }
+  if (kind === 'lunch' && payload && payload.menu) { say(pets.partner, tr('{menu} 같이 먹자!', { menu: tr(payload.menu) }), 6); jump(pets.partner, 300); toast(tr('{who} 점심으로 {menu} 먹재요', { who, menu: tr(payload.menu) }), 4); }
+  else if (kind === 'doodle' && payload && payload.img) { notes.push({ img: payload.img, at: at || new Date().toISOString() }); say(pets.partner, tr('쪽지 왔어! 나를 눌러 봐'), 6); jump(pets.partner, 320); toast(tr('{who} 낙서 쪽지를 보냈어요', { who }), 4); }
   else if (kind === 'focus') { onFocusEvent(payload, partner.id, who); }
-  else if (kind === 'poop') { doPoop(pets.partner, 0, null); doPoop(pets.me, 1000, '나도 같이!'); toast(`${who} 같이 똥 싸재요`, 3.5); }
+  else if (kind === 'poop') { doPoop(pets.partner, 0, null); doPoop(pets.me, 1000, tr('나도 같이!')); toast(tr('{who} 같이 똥 싸재요', { who }), 3.5); }
   else if (kind === 'msg' && payload && payload.text) { say(pets.partner, shortText(payload.text), 8); jump(pets.partner, 300); toast(`${partner.nickname}: ${shortText(payload.text, 40)}`, 5); appendMsg(payload.text, false, at || new Date().toISOString()); }
-  if (kind === 'kiss') { startKiss(); toast(`${josa(partner.nickname, '이', '가')} 뽀뽀했어요`); }
-  else if (kind === 'poke') { jump(pets.partner, 380); pets.partner.react = now() + 2; say(pets.partner, `${josa(partner.nickname, '이', '가')} 보고 싶대!`, 4); spawnHearts(pets.partner.x, groundY() - HEIGHT[pets.partner.kind] * SC, 4, false); }
+  if (kind === 'kiss') { startKiss(); toast(tr('{who} 뽀뽀했어요', { who })); }
+  else if (kind === 'poke') { jump(pets.partner, 380); pets.partner.react = now() + 2; say(pets.partner, tr('{who} 보고 싶대!', { who }), 4); spawnHearts(pets.partner.x, groundY() - HEIGHT[pets.partner.kind] * SC, 4, false); }
   if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
 }
 let sending = false;
@@ -2103,18 +2634,18 @@ async function sendEvent(kind, payload = null) {
   if (scene && kind === 'kiss') return false;
   sending = true; setTimeout(() => { sending = false; }, 900);
   if (kind === 'kiss') startKiss();
-  else if (kind === 'poke') { jump(pets.me, 300); say(pets.me, '콕!', 1.6); }
-  else if (kind === 'poop') { doPoop(pets.me, 0, null); doPoop(pets.partner, 1000, '같이 싸자!'); }
-  else if (kind === 'lunch') { say(pets.me, `${payload.menu} 먹자고 했어!`, 3); jump(pets.me, 280); }
-  else if (kind === 'doodle') { say(pets.me, '쪽지 보냈어!', 2.5); jump(pets.me, 280); }
+  else if (kind === 'poke') { jump(pets.me, 300); say(pets.me, tr('콕!'), 1.6); }
+  else if (kind === 'poop') { doPoop(pets.me, 0, null); doPoop(pets.partner, 1000, tr('같이 싸자!')); }
+  else if (kind === 'lunch') { say(pets.me, tr('{menu} 먹자고 했어!', { menu: tr(payload.menu) }), 3); jump(pets.me, 280); }
+  else if (kind === 'doodle') { say(pets.me, tr('쪽지 보냈어!'), 2.5); jump(pets.me, 280); }
   else if (kind === 'msg') { say(pets.me, shortText(payload.text), 5); }
   const row = { couple_id: couple.id, sender: uid, kind }; if (payload) row.payload = payload;
   const { error } = await sb.from('events').insert(row);
   if (error) {
-    toast(/kind_check|payload|column|msg_len/.test(error.message) ? (kind === 'msg' ? '서버 업데이트가 필요해요 (003_messages.sql 실행)' : '서버 업데이트가 필요해요 (002_more_events.sql 실행)') : '보내지 못했어요: ' + error.message, 5);
+    toast(/kind_check|payload|column|msg_len/.test(error.message) ? tr(kind === 'msg' ? '서버 업데이트가 필요해요 (003_messages.sql 실행)' : '서버 업데이트가 필요해요 (002_more_events.sql 실행)') : tr('보내지 못했어요: {e}', { e: error.message }), 5);
     return false;
   }
-  if (!partnerOnline) toast('짝꿍이 앱을 열면 전해져요');
+  if (!partnerOnline) toast(tr('짝꿍이 앱을 열면 전해져요'));
   return true;
 }
 function doPoop(p, delay, line) {
@@ -2122,17 +2653,17 @@ function doPoop(p, delay, line) {
   setTimeout(() => {
     if (line) say(p, line, 1.4);
     setTimeout(() => {
-      p.squat = now() + 1.5; p.state = 'idle'; p.until = now() + 4; say(p, '끙…', 1.4);
+      p.squat = now() + 1.5; p.state = 'idle'; p.until = now() + 4; say(p, tr('끙…'), 1.4);
       setTimeout(() => {
         poops.push({ x: Math.max(20, Math.min(W - 20, p.x - p.dir * 40 * SC)), born: now() });
         if (poops.length > 12) poops.shift();
-        p.react = now() + 1.6; say(p, '시원하다!', 2); jump(p, 220);
+        p.react = now() + 1.6; say(p, tr('시원하다!'), 2); jump(p, 220);
       }, 1500);
     }, line ? 700 : 0);
   }, delay);
 }
 $('kissBtn').onclick = () => sendEvent('kiss');
-$('pokeBtn').onclick = () => mode === 'group' ? pickFriend('누구를 콕 찌를까요?', f => gSend('poke', f.owner)) : sendEvent('poke');
+$('pokeBtn').onclick = () => mode === 'group' ? pickFriend(tr('누구를 콕 찌를까요?'), f => gSend('poke', f.owner)) : sendEvent('poke');
 $('poopBtn').onclick = () => mode === 'group' ? gSend('poop') : sendEvent('poop');
 $('doodleBtn').onclick = () => openDoodle();
 $('msgBtn').onclick = () => openMessages();
@@ -2141,10 +2672,10 @@ document.addEventListener('click', e => { if (!$('more').hidden && !$('more').co
 $('lunchBtn').onclick = () => { $('more').hidden = true; if (mode === 'group') openVote(); else openLunch(); };
 const INSTALLER = 'https://github.com/YeweonJung/uripet/releases/download/v0.1.0/UriPet-Setup-0.1.0.exe';
 function openInstall() {
-  if (DESKTOP) { toast('이미 PC 앱으로 쓰고 있어요'); return; }
+  if (DESKTOP) { toast(tr('이미 PC 앱으로 쓰고 있어요')); return; }
   const isWin = /Windows/i.test(navigator.userAgent);
-  if (isWin) { location.href = INSTALLER; toast('설치 파일을 내려받는 중이에요. 받은 파일을 열면 설치돼요', 5); }
-  else toast('PC 앱은 Windows에서 설치할 수 있어요. PC에서 yeweonjung.github.io/uripet 에 들어가 주세요', 5);
+  if (isWin) { location.href = INSTALLER; toast(tr('설치 파일을 내려받는 중이에요. 받은 파일을 열면 설치돼요'), 5); }
+  else toast(tr('PC 앱은 Windows에서 설치할 수 있어요. PC에서 yeweonjung.github.io/uripet 에 들어가 주세요'), 5);
 }
 function openHelp() { $('more').hidden = true; $('helpInstall').hidden = DESKTOP; $('helpDlg').hidden = false; }
 $('installBtn').onclick = () => { $('more').hidden = true; openInstall(); };
@@ -2162,14 +2693,14 @@ async function coinBeat() {
   if (document.hidden && !DESKTOP) return;
   const { data, error } = await sb.rpc('coin_heartbeat'); if (error || !data) return;
   setCoins(data.coins);
-  if (data.got > 0) { toast(`앱을 켜 둔 지 ${Math.floor(data.minutes / 60)}시간! 하트 +${data.got}`, 4); if (pets.me) { say(pets.me, `하트 ${data.got}개 받았다!`, 2.5); spawnHearts(pets.me.x, groundY() - HEIGHT[pets.me.kind] * SC, 5, false); } }
+  if (data.got > 0) { toast(tr('앱을 켜 둔 지 {h}시간! 하트 +{n}', { h: Math.floor(data.minutes / 60), n: data.got }), 4); if (pets.me) { say(pets.me, tr('하트 {n}개 받았다!', { n: data.got }), 2.5); spawnHearts(pets.me.x, groundY() - HEIGHT[pets.me.kind] * SC, 5, false); } }
 }
 async function startCoins() {
   setCoins(me && me.coins != null ? me.coins : 0);
   const { data, error } = await sb.rpc('claim_daily');
   if (!error && data) {
     setCoins(data.coins);
-    if (data.got > 0) setTimeout(() => { toast(`오늘 출석 완료! 하트 +${data.got}`, 4); if (pets.me) { say(pets.me, '출석 하트 받았어!', 2.5); jump(pets.me, 300); spawnHearts(pets.me.x, groundY() - HEIGHT[pets.me.kind] * SC, 6); } }, 1600);
+    if (data.got > 0) setTimeout(() => { toast(tr('오늘 출석 완료! 하트 +{n}', { n: data.got }), 4); if (pets.me) { say(pets.me, tr('출석 하트 받았어!'), 2.5); jump(pets.me, 300); spawnHearts(pets.me.x, groundY() - HEIGHT[pets.me.kind] * SC, 6); } }, 1600);
   }
   clearInterval(coinTimer); coinBeat(); coinTimer = setInterval(coinBeat, 5 * 60 * 1000);
 }
@@ -2188,12 +2719,12 @@ function buildShop() {
       const el = document.createElement('div'); el.className = 'shop-item' + (d.locked ? ' locked' : '');
       const c = document.createElement('canvas'); c.width = 192; c.height = 192;
       g = c.getContext('2d'); const k = Math.min(170 / d.w, 170 / (d.hgt + 10)); g.translate(96, 184); g.scale(k, k); d.draw(1);
-      const name = document.createElement('b'); name.textContent = d.name;
-      const price = document.createElement('span'); price.className = 'price'; price.textContent = d.price ? `♥ ${d.price}` : '무료';
+      const name = document.createElement('b'); name.textContent = tr(d.name);
+      const price = document.createElement('span'); price.className = 'price'; price.textContent = d.price ? `♥ ${d.price}` : tr('무료');
       el.append(c, name, price);
-      if (d.season) { const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = d.season; el.append(tg); }
+      if (d.season) { const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = tr(d.season); el.append(tg); }
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (d.locked ? '' : ' primary');
-      b.textContent = d.locked ? '결제 준비 중' : '우리 방에 놓기'; b.disabled = !!d.locked;
+      b.textContent = tr(d.locked ? '결제 준비 중' : '우리 방에 놓기'); b.disabled = !!d.locked;
       if (!d.locked) b.onclick = () => placeItem(id);
       el.append(b); box.append(el);
     }
@@ -2201,14 +2732,14 @@ function buildShop() {
 }
 function openShop() { $('more').hidden = true; buildShop(); $('shopDlg').hidden = false; }
 async function placeItem(id) {
-  if (roomItems.length >= 16) { toast('가구는 16개까지 놓을 수 있어요'); return; }
+  if (roomItems.length >= 16) { toast(tr('가구는 16개까지 놓을 수 있어요')); return; }
   const used = roomItems.map(i => i.x);
   let x = .5; for (const c of [.5, .25, .75, .15, .85, .35, .65, .08, .92]) { if (!used.some(u => Math.abs(u - c) < .08)) { x = c; break; } }
   const { data, error } = await sb.from(T().table).insert({ [T().fk]: T().id, item: id, x, placed_by: uid }).select('id, item, x, placed_by').single();
-  if (error) { toast(/room_items|relation|schema/.test(error.message) ? '서버 업데이트가 필요해요 (005_room.sql 실행)' : '놓지 못했어요: ' + error.message, 5); return; }
+  if (error) { toast(/room_items|relation|schema/.test(error.message) ? tr('서버 업데이트가 필요해요 (005_room.sql 실행)') : tr('놓지 못했어요: {e}', { e: error.message }), 5); return; }
   if (!roomItems.some(i => i.id === data.id)) roomItems.push(data);
   $('shopDlg').hidden = true; setDecor(true);
-  if (pets.me) say(pets.me, `${DECOR[id].name}다!`, 2);
+  if (pets.me) say(pets.me, tr('{name}다!', { name: tr(DECOR[id].name) }), 2);
 }
 function setDecor(on) { decorMode = on; $('decorBar').hidden = !on; if (!on) decorDrag = null; }
 $('decorBtn').onclick = () => { $('more').hidden = true; if (!roomItems.length) openShop(); else setDecor(true); };
@@ -2218,7 +2749,7 @@ stage.addEventListener('pointerdown', e => {
   if (!decorMode) return;
   const hit = decorAt(e.clientX, e.clientY); if (!hit) return;
   e.stopImmediatePropagation();
-  if (hit.remove) { roomItems = roomItems.filter(i => i !== hit.it); sb.from(T().table).delete().eq('id', hit.it.id).then(({ error }) => { if (error) toast('치우지 못했어요: ' + error.message); }); for (const q of [pets.me, pets.partner]) if (q && q.anchor && q.anchor.itemId === hit.it.id) dropOff(q); return; }
+  if (hit.remove) { roomItems = roomItems.filter(i => i !== hit.it); sb.from(T().table).delete().eq('id', hit.it.id).then(({ error }) => { if (error) toast(tr('치우지 못했어요: {e}', { e: error.message })); }); for (const q of [pets.me, pets.partner]) if (q && q.anchor && q.anchor.itemId === hit.it.id) dropOff(q); return; }
   stage.setPointerCapture(e.pointerId); decorDrag = { it: hit.it, id: e.pointerId, ox: itemX(hit.it) - e.clientX };
 }, true);
 stage.addEventListener('pointermove', e => {
@@ -2230,13 +2761,13 @@ const endDecorDrag = e => {
   if (!decorDrag || e.pointerId !== decorDrag.id) return;
   e.stopImmediatePropagation();
   const it = decorDrag.it; decorDrag = null; suppressClick = true; setTimeout(() => { suppressClick = false; }, 50);
-  sb.from(T().table).update({ x: it.x }).eq('id', it.id).then(({ error }) => { if (error) toast('옮기지 못했어요: ' + error.message); });
+  sb.from(T().table).update({ x: it.x }).eq('id', it.id).then(({ error }) => { if (error) toast(tr('옮기지 못했어요: {e}', { e: error.message })); });
 };
 stage.addEventListener('pointerup', endDecorDrag, true);
 stage.addEventListener('pointercancel', endDecorDrag, true);
 const SIZE_ORDER = ['xsmall', 'small', 'medium', 'large'], SIZE_LABEL = { xsmall: '아주 작게', small: '작게', medium: '보통', large: '크게' };
-function setSize(sz) { prefs.size = sz; savePrefs(); resize(); $('sizeBtn').textContent = `캐릭터 크기: ${SIZE_LABEL[sz]}`; if (pets.me) { say(pets.me, SIZE_LABEL[sz] + '!', 1.2); jump(pets.me, 200); } }
-$('sizeBtn').textContent = `캐릭터 크기: ${SIZE_LABEL[prefs.size] || '보통'}`;
+function setSize(sz) { prefs.size = sz; savePrefs(); resize(); $('sizeBtn').textContent = tr('캐릭터 크기: {s}', { s: tr(SIZE_LABEL[sz]) }); if (pets.me) { say(pets.me, tr(SIZE_LABEL[sz]) + '!', 1.2); jump(pets.me, 200); } }
+$('sizeBtn').textContent = tr('캐릭터 크기: {s}', { s: tr(SIZE_LABEL[prefs.size] || '보통') });
 $('sizeBtn').onclick = e => { e.stopPropagation(); setSize(SIZE_ORDER[(SIZE_ORDER.indexOf(prefs.size) + 1) % SIZE_ORDER.length]); };
 $('helpInstall').onclick = openInstall;
 $('helpOk').onclick = () => { $('helpDlg').hidden = true; };
@@ -2258,20 +2789,20 @@ function rollLunch() {
   let c, m, guard = 0;
   do { c = cats[Math.floor(Math.random() * cats.length)]; m = LUNCH[c][Math.floor(Math.random() * LUNCH[c].length)]; } while (lunchPick && m === lunchPick.menu && guard++ < 10);
   lunchPick = { cat: c, menu: m };
-  $('lunchCat').textContent = c; $('lunchMenu').textContent = m;
-  if (pets.me) say(pets.me, `오늘은 ${m} 어때?`, 3.5);
+  $('lunchCat').textContent = tr(c); $('lunchMenu').textContent = tr(m);
+  if (pets.me) say(pets.me, tr('오늘은 {m} 어때?', { m: tr(m) }), 3.5);
 }
 (function buildLunchCats() {
   const box = $('lunchCats');
   ['전체', ...Object.keys(LUNCH)].forEach(c => {
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = c; b.setAttribute('aria-pressed', c === lunchCat);
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = tr(c); b.setAttribute('aria-pressed', c === lunchCat);
     b.onclick = () => { lunchCat = c; box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); rollLunch(); };
     box.append(b);
   });
 })();
 function openLunch() { rollLunch(); $('lunchDlg').hidden = false; }
 $('lunchAgain').onclick = rollLunch;
-$('lunchSend').onclick = async () => { if (lunchPick && await sendEvent('lunch', { menu: lunchPick.menu })) { $('lunchDlg').hidden = true; toast(`${lunchPick.menu} 먹자고 보냈어요`); } };
+$('lunchSend').onclick = async () => { if (lunchPick && await sendEvent('lunch', { menu: lunchPick.menu })) { $('lunchDlg').hidden = true; toast(tr('{menu} 먹자고 보냈어요', { menu: tr(lunchPick.menu) })); } };
 
 /* =================== fortune =================== */
 const CARDS = [
@@ -2307,23 +2838,23 @@ function todaysFortune() {
 function savedCards() { try { return JSON.parse(localStorage.getItem('uripet-cards') || '[]'); } catch (e) { return []; } }
 function openFortune() {
   const f = todaysFortune(), d = new Date();
-  $('fDate').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일의 카드`;
-  $('fName').textContent = f.name; $('fMsg').textContent = f.msg; $('fColor').textContent = f.color; $('fNum').textContent = f.num; $('fTemp').textContent = f.temp + '℃';
+  $('fDate').textContent = tr('{date}의 카드', { date: md(d) });
+  $('fName').textContent = tr(f.name); $('fMsg').textContent = tr(f.msg); $('fColor').textContent = tr(f.color); $('fNum').textContent = f.num; $('fTemp').textContent = f.temp + '℃';
   const saved = savedCards().some(x => x.day === f.day);
-  $('fSave').textContent = saved ? '저장했어요' : '카드 저장'; $('fSave').disabled = saved;
+  $('fSave').textContent = tr(saved ? '저장했어요' : '카드 저장'); $('fSave').disabled = saved;
   $('fList').hidden = true; $('fortuneDlg').hidden = false;
-  if (pets.me) say(pets.me, `오늘의 카드는 ${f.name}!`, 3);
+  if (pets.me) say(pets.me, tr('오늘의 카드는 {name}!', { name: tr(f.name) }), 3);
 }
 $('fSave').onclick = () => {
   const f = todaysFortune(), list = savedCards().filter(x => x.day !== f.day); list.unshift(f);
   try { localStorage.setItem('uripet-cards', JSON.stringify(list.slice(0, 60))); } catch (e) {}
-  $('fSave').textContent = '저장했어요'; $('fSave').disabled = true; toast('카드를 저장했어요');
+  $('fSave').textContent = tr('저장했어요'); $('fSave').disabled = true; toast(tr('카드를 저장했어요'));
 };
 $('fSaved').onclick = () => {
   const box = $('fList'); box.replaceChildren();
   const list = savedCards();
-  if (!list.length) { const p = document.createElement('p'); p.textContent = '아직 저장한 카드가 없어요.'; box.append(p); }
-  for (const c of list) { const row = document.createElement('div'); const b = document.createElement('b'); b.textContent = c.name; const s = document.createElement('span'); s.textContent = `${c.day} · ${c.msg}`; row.append(b, s); box.append(row); }
+  if (!list.length) { const p = document.createElement('p'); p.textContent = tr('아직 저장한 카드가 없어요.'); box.append(p); }
+  for (const c of list) { const row = document.createElement('div'); const b = document.createElement('b'); b.textContent = tr(c.name); const s = document.createElement('span'); s.textContent = `${c.day} · ${tr(c.msg)}`; row.append(b, s); box.append(row); }
   box.hidden = !box.hidden;
 };
 
@@ -2351,7 +2882,7 @@ $('padSend').onclick = async () => {
   const small = document.createElement('canvas'); small.width = 360; small.height = 260;
   small.getContext('2d').drawImage(pad, 0, 0, 360, 260);
   const img = small.toDataURL('image/png');
-  if (await (mode === 'group' ? gSend('doodle', null, { img }) : sendEvent('doodle', { img }))) { $('doodleDlg').hidden = true; toast('쪽지를 보냈어요'); }
+  if (await (mode === 'group' ? gSend('doodle', null, { img }) : sendEvent('doodle', { img }))) { $('doodleDlg').hidden = true; toast(tr('쪽지를 보냈어요')); }
 };
 let notes = [];
 /* =================== messages =================== */
@@ -2369,11 +2900,11 @@ function appendMsg(text, mine, at, from) {
 }
 async function openMessages() {
   if (mode === 'group') return openGroupChat();
-  $('msgTitle').textContent = partner ? `${josa(partner.nickname, '과', '와')}의 메시지` : '메시지';
+  $('msgTitle').textContent = partner ? tr('{who}의 메시지', { who: josa(partner.nickname, '과', '와') }) : tr('메시지');
   const list = $('msgList'); list.replaceChildren(); $('msgDlg').hidden = false;
   const { data, error } = await sb.from('events').select('sender, payload, created_at').eq('couple_id', couple.id).eq('kind', 'msg').order('created_at', { ascending: false }).limit(40);
   list.replaceChildren();
-  if (error || !data || !data.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = error ? '서버 업데이트가 필요해요 (003_messages.sql 실행)' : '아직 주고받은 메시지가 없어요. 첫 한마디를 보내 보세요!'; list.append(p); }
+  if (error || !data || !data.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = tr(error ? '서버 업데이트가 필요해요 (003_messages.sql 실행)' : '아직 주고받은 메시지가 없어요. 첫 한마디를 보내 보세요!'); list.append(p); }
   else for (const m of data.reverse()) if (m.payload && m.payload.text) list.append(msgEl(m.payload.text, m.sender === uid, m.created_at));
   list.scrollTop = list.scrollHeight;
   setTimeout(() => $('msgText').focus(), 50);
@@ -2391,9 +2922,9 @@ function openNote() {
   const n = notes.shift(); if (!n) { $('noteDlg').hidden = true; return; }
   $('noteImg').src = n.img;
   const d = new Date(n.at);
-  $('noteTitle').textContent = `${partner ? partner.nickname : '짝꿍'}의 쪽지`;
-  $('noteMeta').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}에 보냈어요`;
-  $('noteNext').hidden = !notes.length; $('noteNext').textContent = `다음 쪽지 (${notes.length})`;
+  $('noteTitle').textContent = tr('{name}의 쪽지', { name: partner ? partner.nickname : tr('짝꿍') });
+  $('noteMeta').textContent = tr('{date} {time}에 보냈어요', { date: md(d), time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` });
+  $('noteNext').hidden = !notes.length; $('noteNext').textContent = tr('다음 쪽지 ({n})', { n: notes.length });
   $('noteDlg').hidden = false;
 }
 $('noteNext').onclick = openNote;
@@ -2413,13 +2944,13 @@ async function catchUp() {
   const lastMsg = data.filter(e => e.kind === 'msg' && e.payload).pop();
   const lunch = data.filter(e => e.kind === 'lunch' && e.payload).pop();
   for (const e of data) if (e.kind === 'doodle' && e.payload && e.payload.img) notes.push({ img: e.payload.img, at: e.created_at });
-  const parts = []; if (kiss) parts.push(`뽀뽀 ${kiss}번`); if (poke) parts.push(`콕 ${poke}번`); if (doodle) parts.push(`쪽지 ${doodle}장`); if (poop) parts.push(`똥 ${poop}번`); if (msg) parts.push(`메시지 ${msg}개`); if (lunch) parts.push(`점심 제안`);
+  const parts = []; if (kiss) parts.push(tr('뽀뽀 {n}번', { n: kiss })); if (poke) parts.push(tr('콕 {n}번', { n: poke })); if (doodle) parts.push(tr('쪽지 {n}장', { n: doodle })); if (poop) parts.push(tr('똥 {n}번', { n: poop })); if (msg) parts.push(tr('메시지 {n}개', { n: msg })); if (lunch) parts.push(tr('점심 제안'));
   if (!parts.length) return;
   setTimeout(() => {
-    toast(`자리 비운 동안 ${josa(partner.nickname, '이', '가')} ${parts.join(', ')} 보냈어요`, 4.5);
+    toast(tr('자리 비운 동안 {who} {list} 보냈어요', { who: josa(partner.nickname, '이', '가'), list: parts.join(', ') }), 4.5);
     if (kiss) startKiss(); else if (poke) receive('poke');
-    if (doodle && pets.partner) say(pets.partner, '쪽지 왔어! 나를 눌러 봐', 6);
-    if (lunch && !kiss) say(pets.partner, `${lunch.payload.menu} 같이 먹자!`, 5);
+    if (doodle && pets.partner) say(pets.partner, tr('쪽지 왔어! 나를 눌러 봐'), 6);
+    if (lunch && !kiss) say(pets.partner, tr('{menu} 같이 먹자!', { menu: tr(lunch.payload.menu) }), 5);
     if (lastMsg) say(pets.partner, shortText(lastMsg.payload.text), 8);
   }, 700);
 }
@@ -2433,23 +2964,23 @@ function daysTogether(metOn) {
 }
 function milestone(metOn, n) {
   if (n <= 0) return null;
-  if (n % 100 === 0) return `오늘 ${n}일!`;
+  if (n % 100 === 0) return tr('오늘 {n}일!', { n });
   const [y, m, d] = metOn.split('-').map(Number), t = new Date();
-  if (t.getMonth() === m - 1 && t.getDate() === d && t.getFullYear() > y) return `오늘 ${t.getFullYear() - y}주년!`;
+  if (t.getMonth() === m - 1 && t.getDate() === d && t.getFullYear() > y) return tr('오늘 {n}주년!', { n: t.getFullYear() - y });
   return null;
 }
 function renderDday(changed) {
   const b = $('ddayBtn'), n = daysTogether(couple && couple.met_on);
-  if (n == null) { b.textContent = '처음 만난 날 정하기'; b.classList.add('unset'); return; }
+  if (n == null) { b.textContent = tr('처음 만난 날 정하기'); b.classList.add('unset'); return; }
   b.classList.remove('unset');
   b.textContent = n > 0 ? `D+${n}` : `D${n - 1}`;
-  if (DESKTOP && partner) window.desktop.setStatus(`${josa(partner.nickname, "과", "와")} 함께 · ${b.textContent}`);
-  b.setAttribute('aria-label', n > 0 ? `함께한 지 ${n}일째` : `만나기까지 ${1 - n}일`);
+  if (DESKTOP && partner) window.desktop.setStatus(tr('{who} 함께 · {d}', { who: josa(partner.nickname, '과', '와'), d: b.textContent }));
+  b.setAttribute('aria-label', n > 0 ? tr('함께한 지 {n}일째', { n }) : tr('만나기까지 {n}일', { n: 1 - n }));
   const ms = milestone(couple.met_on, n);
   const key = 'couple-pet-party-' + couple.id + '-' + new Date().toDateString();
   let seen = false; try { seen = !!localStorage.getItem(key); } catch (e) {}
   if (ms && !seen && pets.me) { setTimeout(() => startParty(ms), 1200); try { localStorage.setItem(key, '1'); } catch (e) {} }
-  if (changed && n > 0) toast(`처음 만난 날이 바뀌었어요 · D+${n}`);
+  if (changed && n > 0) toast(tr('처음 만난 날이 바뀌었어요 · D+{n}', { n }));
 }
 $('ddayBtn').onclick = () => { $('metOn2').value = couple.met_on || ''; $('ddayDlg').hidden = false; };
 $('ddayCancel').onclick = () => { $('ddayDlg').hidden = true; };
@@ -2460,7 +2991,7 @@ async function saveMetOn(v) {
   if (!couple || !couple.member_b) return true;
   if (!v || v === couple.met_on) return true;
   const { error } = await sb.from('couples').update({ met_on: v }).eq('id', couple.id);
-  if (error) { toast('저장하지 못했어요: ' + error.message); return false; }
+  if (error) { toast(tr('저장하지 못했어요: {e}', { e: error.message })); return false; }
   couple.met_on = v; renderDday(false); return true;
 }
 
@@ -2469,8 +3000,8 @@ let pickedPet2 = 'mongle';
 const setPicker = buildPicker('petPick2', id => { pickedPet2 = id; }); pickers.push(setPicker);
 $('menuBtn').onclick = () => {
   pickedPet2 = me.pet; setPicker.set(me.pet); $('nick2').value = me.nickname; $('metOn').value = (couple && couple.met_on) || '';
-  sb.rpc('my_restore_code').then(({ data, error }) => { $('myRestore').textContent = error ? '서버 업데이트 필요' : (data.slice(0, 4) + '-' + data.slice(4)); });
-  $('talkLevel').value = String(prefs.talk); $('stillMode').checked = !!prefs.still; $('petSize').value = prefs.size;
+  sb.rpc('my_restore_code').then(({ data, error }) => { $('myRestore').textContent = error ? tr('서버 업데이트 필요') : (data.slice(0, 4) + '-' + data.slice(4)); });
+  $('langSel').value = LANG; $('talkLevel').value = String(prefs.talk); $('stillMode').checked = !!prefs.still; $('petSize').value = prefs.size;
   $('setMsg').textContent = ''; $('leaveBox').hidden = false; $('leaveConfirm').hidden = true; $('settings').hidden = false;
 };
 $('setCancel').onclick = () => { $('settings').hidden = true; };
@@ -2478,15 +3009,15 @@ $('settingsForm').addEventListener('submit', async e => {
   e.preventDefault();
   prefs.talk = Number($('talkLevel').value); prefs.still = $('stillMode').checked; savePrefs(); setSize($('petSize').value);
   if (prefs.still && pets.me) { pets.me.state = 'idle'; if (pets.partner) pets.partner.state = 'idle'; }
-  const nickname = $('nick2').value.trim(); if (!nickname) { $('setMsg').textContent = '이름을 적어 주세요.'; $('setMsg').className = 'msg err'; return; }
+  const nickname = $('nick2').value.trim(); if (!nickname) { $('setMsg').textContent = tr('이름을 적어 주세요.'); $('setMsg').className = 'msg err'; return; }
   const { data, error } = await sb.from('profiles').update({ nickname, pet: pickedPet2 }).eq('id', uid).select().single();
-  if (error) { $('setMsg').textContent = '저장하지 못했어요: ' + error.message; $('setMsg').className = 'msg err'; return; }
+  if (error) { $('setMsg').textContent = tr('저장하지 못했어요: {e}', { e: error.message }); $('setMsg').className = 'msg err'; return; }
   me = data; if (pets.me) pets.me.kind = me.pet;
   if (roomChannel) roomChannel.track({ nickname: me.nickname, pet: me.pet, at: Date.now() });
   if (!(await saveMetOn($('metOn').value))) return;
-  $('settings').hidden = true; toast('저장했어요');
+  $('settings').hidden = true; toast(tr('저장했어요'));
 });
-$('copyRestore').onclick = async () => { const c = $('myRestore').textContent; try { await navigator.clipboard.writeText(c); toast(`이어 쓰기 코드 ${c}를 복사했어요`); } catch (e) { toast('코드를 길게 눌러 복사해 주세요'); } };
+$('copyRestore').onclick = async () => { const c = $('myRestore').textContent; try { await navigator.clipboard.writeText(c); toast(tr('이어 쓰기 코드 {c}를 복사했어요', { c })); } catch (e) { toast(tr('코드를 길게 눌러 복사해 주세요')); } };
 $('restoreCode').addEventListener('input', e => {
   const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
   e.target.value = raw.length > 4 ? raw.slice(0, 4) + '-' + raw.slice(4) : raw;
@@ -2494,20 +3025,21 @@ $('restoreCode').addEventListener('input', e => {
 $('restoreOpen').onclick = () => { $('restoreBox').hidden = false; $('restoreCode').focus(); };
 $('restoreGo').onclick = async () => {
   const code = $('restoreCode').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (code.length !== 8) { $('setupMsg').textContent = '코드 8자리를 넣어 주세요.'; return; }
+  if (code.length !== 8) { $('setupMsg').textContent = tr('코드 8자리를 넣어 주세요.'); return; }
   let { data: { session } } = await sb.auth.getSession();
-  if (!session) { const r = await sb.auth.signInAnonymously(); if (r.error) { $('setupMsg').textContent = '접속하지 못했어요: ' + r.error.message; return; } session = r.data.session; }
+  if (!session) { const r = await sb.auth.signInAnonymously(); if (r.error) { $('setupMsg').textContent = tr('접속하지 못했어요: {e}', { e: r.error.message }); return; } session = r.data.session; }
   uid = session.user.id;
   const { error } = await sb.rpc('restore_with_code', { code_in: code });
-  if (error) { $('setupMsg').textContent = /invalid code/.test(error.message) ? '코드가 맞지 않아요. 다시 확인해 주세요.' : /function|schema/.test(error.message) ? '서버 업데이트가 필요해요 (004_restore.sql 실행)' : '불러오지 못했어요: ' + error.message; return; }
+  if (error) { $('setupMsg').textContent = /invalid code/.test(error.message) ? tr('코드가 맞지 않아요. 다시 확인해 주세요.') : /function|schema/.test(error.message) ? tr('서버 업데이트가 필요해요 (004_restore.sql 실행)') : tr('불러오지 못했어요: {e}', { e: error.message }); return; }
   const { data: prof } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
-  me = prof; toast('예전 기록을 불러왔어요'); await loadCouple();
+  me = prof; toast(tr('예전 기록을 불러왔어요')); await loadCouple();
 };
+$('langSel').onchange = () => { try { localStorage.setItem('lang', $('langSel').value); } catch (e) {} location.reload(); };
 $('leaveBtn').onclick = () => { $('leaveBox').hidden = true; $('leaveConfirm').hidden = false; };
 $('leaveNo').onclick = () => { $('leaveBox').hidden = false; $('leaveConfirm').hidden = true; };
 $('leaveYes').onclick = async () => {
   const { error } = await sb.rpc('leave_couple');
-  if (error) { toast('끊지 못했어요: ' + error.message); return; }
+  if (error) { toast(tr('끊지 못했어요: {e}', { e: error.message })); return; }
   $('settings').hidden = true; leaveRoom(); couple = null; await loadCouple();
 };
 document.querySelectorAll('.scrim').forEach(s => s.addEventListener('click', e => { if (e.target === s) s.hidden = true; }));
@@ -2556,11 +3088,12 @@ if (DESKTOP) {
     setInteractive(panelOpen());
   });
   if (pets) window.desktop.setStatus('UriPet');
+  if (window.desktop.setLang) window.desktop.setLang(LANG);
 }
 
 if (location.hash === '#demo') window.__uripet = { pets, groundY: () => groundY(), sc: () => SC, pip: () => { drawPip(); return pipCanvas.toDataURL('image/png'); } };
 
-boot().catch(e => fatal('예상하지 못한 문제가 생겼어요: ' + (e.message || e)));
+boot().catch(e => fatal(tr('예상하지 못한 문제가 생겼어요: {e}', { e: e.message || e })));
 })();
 </script>
 </body>
