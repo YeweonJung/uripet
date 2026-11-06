@@ -1,0 +1,2567 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>UriPet</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="UriPet">
+<meta name="theme-color" content="#FBE9DD">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: full-screen room. Top bar (D-day · partner · menu), the floor where both pets live, bottom action bar.
+   Setup and pairing are centered cards over the same room. */
+:root {
+  --wall: #FFF3EA; --wall-2: #FBE3D3; --floor: #F2D2BE; --card: #FFFFFF; --ink: #2F2925; --muted: #7A6F66;
+  --line: #EAD9CB; --accent: #C2643F; --accent-ink: #FFFFFF; --chip: #F7ECE3; --love: #E8607A; --ok: #3D8B5A; --bad: #B4473A;
+  --scrim: rgba(47, 41, 37, .35); --shadow: 0 10px 30px rgba(90, 50, 30, .16), 0 2px 6px rgba(90, 50, 30, .08);
+  --display: "Jua", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --body: "Gowun Dodum", "Apple SD Gothic Neo", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --wall: #231E1B; --wall-2: #2B2420; --floor: #3A302A; --card: #2A2421; --ink: #F3ECE4; --muted: #B3A79D;
+  --line: #43382F; --accent: #EC9A75; --accent-ink: #1E1916; --chip: #352D28; --love: #F3809A; --ok: #7CC795; --bad: #F08C7C;
+  --scrim: rgba(0, 0, 0, .5); --shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3); color-scheme: dark } }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--wall); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55; overflow: hidden;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+#room { position: fixed; inset: 0; background: linear-gradient(var(--wall), var(--wall-2)); }
+#stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+
+.topbar { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+.pill { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 15px; white-space: nowrap; }
+.dday { font-family: var(--display); font-size: 19px; color: var(--love); }
+.dday.unset { font-family: var(--body); font-size: 14px; color: var(--muted); }
+.who { flex: 1; justify-content: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; background: transparent; border-color: transparent; box-shadow: none; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.on { background: var(--ok); }
+.icon-btn { width: 44px; padding: 0; justify-content: center; font-size: 20px; line-height: 1; }
+
+.actions { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) max(16px, env(safe-area-inset-left, 0px)); }
+.act { min-height: 52px; padding: 0 22px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); font-size: 16px; }
+.act.love { background: var(--love); border-color: var(--love); color: #fff; }
+.act:active { transform: scale(.97); }
+
+.center { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; overflow: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) max(16px, env(safe-area-inset-left, 0px)); }
+.card { width: min(460px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow);
+  padding: 24px; display: grid; gap: 16px; -webkit-user-select: text; user-select: text; }
+.card h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 30px; line-height: 1.2; text-wrap: balance; }
+.card h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 22px; }
+.card p { margin: 0; color: var(--muted); }
+.field { display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+input[type=text], input[type=date] { min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); width: 100%; font-size: 17px; }
+.code-input { font-family: var(--display); font-size: 26px !important; letter-spacing: .3em; text-transform: uppercase; text-align: center; }
+.pets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pets .pet-opt canvas { max-width: 96px; }
+.pet-opt { display: grid; gap: 2px; justify-items: center; padding: 8px 4px 10px; border-radius: 14px; border: 2px solid var(--line); background: var(--chip); }
+.pet-opt canvas { width: 100%; max-width: 110px; aspect-ratio: 1; }
+.pet-opt span { font-family: var(--display); font-size: 17px; }
+.pet-opt[aria-pressed="true"] { border-color: var(--accent); background: var(--card); }
+.btn { min-height: 50px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line); background: var(--chip); font-size: 16px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > .btn { flex: 1 1 140px; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.bigcode { font-family: var(--display); font-size: 44px; letter-spacing: .18em; text-align: center; color: var(--accent); padding: 8px 0; -webkit-user-select: all; user-select: all; }
+.msg { font-size: 14px; min-height: 1.5em; margin: 0; }
+.msg.err { color: var(--bad); }
+.msg.ok { color: var(--ok); }
+.help { font-size: 14px; color: var(--muted); background: var(--chip); border-radius: 12px; padding: 12px 14px; margin: 0; }
+.help ol { margin: 6px 0 0; padding-left: 20px; }
+
+.scrim { position: fixed; inset: 0; z-index: 10; background: var(--scrim); display: grid; place-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) max(16px, env(safe-area-inset-left, 0px)); }
+.scrim .card { max-height: 100%; overflow: auto; }
+
+#pop { position: absolute; z-index: 6; display: grid; gap: 4px; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+#pop button { min-height: 46px; padding: 0 18px; border: 0; border-radius: 10px; background: transparent; text-align: left; font-size: 16px; }
+#pop button:active, #pop button:hover { background: var(--chip); }
+
+#toast { position: fixed; z-index: 20; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 70px);
+  background: var(--ink); color: var(--card); padding: 10px 18px; border-radius: 999px; font-size: 15px; max-width: calc(100% - 32px); text-align: center; box-shadow: var(--shadow); }
+/* desktop app: transparent overlay, controls live in the tray menu */
+.desktop, .desktop body, .desktop #room { background: transparent !important; }
+.desktop .topbar, .desktop .actions, .desktop .hint { display: none !important; }
+.desktop .center { background: transparent; }
+.card { position: relative; }
+.x-btn { position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--chip); color: var(--muted); font-size: 22px; line-height: 1; display: grid; place-items: center; }
+.x-btn:hover { color: var(--ink); }
+.card h1, .card h2 { padding-right: 44px; }
+.menu-pop { position: absolute; z-index: 6; display: grid; gap: 4px; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+  right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 80px); }
+.menu-pop button { min-height: 46px; padding: 0 18px; border: 0; border-radius: 10px; background: transparent; text-align: left; font-size: 16px; }
+.menu-pop button:hover, .menu-pop button:active { background: var(--chip); }
+.check-row { display: flex; align-items: center; gap: 10px; font-size: 15px; min-height: 40px; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--accent); }
+select { min-height: 48px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--chip); font-size: 14px; }
+.chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.lunch-pick { display: grid; justify-items: center; gap: 2px; padding: 18px 0 8px; }
+.lunch-pick small { color: var(--muted); font-size: 14px; }
+.lunch-pick strong { font-family: var(--display); font-weight: 400; font-size: 40px; color: var(--accent); text-align: center; }
+.fcard { display: grid; justify-items: center; gap: 6px; text-align: center; padding: 16px; border-radius: 18px; border: 1px solid var(--line);
+  background: linear-gradient(160deg, var(--chip), var(--card)); }
+.fcard canvas { width: 120px; height: 120px; }
+.fcard small { color: var(--muted); }
+.fcard strong { font-family: var(--display); font-weight: 400; font-size: 30px; color: var(--love); }
+.fcard p { margin: 0; color: var(--ink); max-width: 32ch; }
+.fmeta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; margin: 8px 0 0; }
+.fmeta div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 4px; }
+.fmeta dt { font-size: 12px; color: var(--muted); }
+.fmeta dd { margin: 0; font-family: var(--display); font-size: 18px; }
+.flist { display: grid; gap: 6px; max-height: 220px; overflow: auto; }
+.flist div { display: flex; gap: 10px; align-items: baseline; padding: 8px 10px; border-radius: 10px; background: var(--chip); font-size: 14px; }
+.flist b { font-family: var(--display); font-weight: 400; color: var(--love); }
+.pad { width: 100%; aspect-ratio: 36 / 26; background: #FFFDF9; border: 1px solid var(--line); border-radius: 14px; touch-action: none; cursor: crosshair; }
+.tools { align-items: center; }
+.sw { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--card); background: var(--sw); box-shadow: 0 0 0 1px var(--line); }
+.sw.on { box-shadow: 0 0 0 3px var(--accent); }
+.btn.small { min-height: 38px; padding: 0 14px; font-size: 14px; flex: 0 0 auto !important; }
+.btn.small.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.note-img { width: 100%; border-radius: 14px; border: 1px solid var(--line); background: #FFFDF9; }
+.help-card h3 { margin: 4px 0 0; font-family: var(--display); font-weight: 400; font-size: 19px; }
+.howto { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.howto li { display: grid; gap: 1px; padding: 10px 12px; border-radius: 12px; background: var(--chip); }
+.howto b { font-size: 15px; }
+.howto span { font-size: 14px; color: var(--muted); }
+.min-btn { position: absolute; top: 10px; right: 60px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--chip); color: var(--muted); font-size: 22px; line-height: 1; display: grid; place-items: center; }
+.min-btn:hover { color: var(--ink); }
+.card h1, .card h2 { padding-right: 100px; }
+#restorePill { position: fixed; z-index: 40; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  min-height: 48px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); font-size: 15px; display: flex; align-items: center; gap: 8px; }
+#restorePill i { width: 10px; height: 10px; border-radius: 50%; background: var(--love); }
+@media (max-width: 640px) {
+  .act { min-height: 42px; padding: 0 13px; font-size: 14px; box-shadow: none; }
+  .actions { gap: 6px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+  .pill { min-height: 38px; padding: 0 12px; font-size: 13px; box-shadow: none; }
+  .dday { font-size: 16px; }
+  .icon-btn { width: 38px; }
+  .topbar { padding-top: calc(env(safe-area-inset-top, 0px) + 8px); }
+  .card { padding: 18px; gap: 12px; border-radius: 16px; }
+  .card h1 { font-size: 24px; }
+  .card h2 { font-size: 19px; }
+  .pet-opt { padding: 4px 2px 6px; }
+  .pets .pet-opt canvas { max-width: 70px; }
+  .pet-opt span { font-size: 14px; }
+  .btn { min-height: 44px; font-size: 15px; }
+  input[type=text], input[type=date], select { min-height: 44px; font-size: 16px; }
+  .min-btn, .x-btn { width: 38px; height: 38px; top: 8px; font-size: 19px; }
+  .min-btn { right: 52px; } .x-btn { right: 8px; }
+  .card h1, .card h2 { padding-right: 88px; }
+  .lunch-pick strong { font-size: 32px; }
+  .help-card .howto li { padding: 8px 10px; }
+}
+.feat-tip { font-size: 13px; margin-top: -6px !important; }
+.feat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.feat-grid h4 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 13px; font-weight: 400; color: var(--muted); }
+.feat { display: grid; place-items: center; gap: 4px; min-height: 76px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--chip); font-size: 14px; text-align: center; line-height: 1.3; }
+.feat:hover, .feat:active { background: var(--card); border-color: var(--accent); }
+.feat i { font-style: normal; font-family: var(--display); font-size: 22px; color: var(--accent); line-height: 1; }
+.feat.love i { color: var(--love); }
+.feat.danger { color: var(--bad); }
+.feat.danger i { color: var(--bad); }
+@media (max-width: 400px) { .feat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.msg-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; min-height: 120px; overflow-y: auto; padding: 4px 2px; }
+.msg-list .empty { color: var(--muted); font-size: 14px; text-align: center; margin: auto; }
+.msg { max-width: 78%; padding: 8px 12px; border-radius: 16px; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; background: var(--chip); align-self: flex-start; border-bottom-left-radius: 4px; }
+.msg.mine { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-left-radius: 16px; border-bottom-right-radius: 4px; }
+.msg small { display: block; font-size: 11px; opacity: .7; margin-top: 2px; }
+.msg-form { display: flex; gap: 8px; }
+.msg-form input { flex: 1; min-width: 0; }
+.msg-form .btn { flex: 0 0 auto; }
+.note-sm { font-size: 13px; color: var(--muted); margin: 0; }
+.small-code { font-size: 26px !important; letter-spacing: .14em; padding: 4px 0 !important; flex: 1 1 auto; }
+.pip-preview { display: block; width: 100%; height: clamp(160px, 34vw, 280px); object-fit: contain; border-radius: 14px; background: #FBE3D3; border: 1px solid var(--line); }
+.shop-card { width: min(640px, 100%); }
+.coin-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.coin { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; padding: 6px 12px; border-radius: 999px; background: var(--chip); }
+.coin i { width: 14px; height: 14px; border-radius: 50%; background: var(--love); box-shadow: inset -2px -2px 0 rgba(0,0,0,.12); }
+.coin b { font-family: var(--display); font-weight: 400; font-size: 18px; color: var(--love); }
+.shop-h { margin: 6px 0 0; font-family: var(--display); font-weight: 400; font-size: 18px; }
+.shop-h small { font-family: var(--body); font-size: 12px; color: var(--muted); margin-left: 6px; }
+.shop-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 480px) { .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.shop-item { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--chip); text-align: center; }
+.shop-item canvas { width: 96px; height: 96px; }
+.shop-item b { font-size: 14px; font-weight: 600; }
+.shop-item small { font-size: 12px; color: var(--muted); }
+.shop-item .price { font-family: var(--display); color: var(--love); font-size: 15px; }
+.shop-item .btn { min-height: 36px; width: 100%; font-size: 13px; padding: 0 8px; }
+.shop-item.locked { opacity: .85; }
+.tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--love); color: #fff; }
+#decorBar { position: fixed; z-index: 7; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 64px);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 32px);
+  padding: 8px 10px 8px 16px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 14px; }
+.desktop #decorBar { top: auto; bottom: 230px; }
+.code-input { min-width: 0; }
+.restore-input { font-size: 22px !important; letter-spacing: .08em !important; }
+@media (max-width: 640px) { .code-input { font-size: 22px !important; letter-spacing: .16em; } .restore-input { font-size: 20px !important; letter-spacing: .05em !important; } }
+.coin-pill { gap: 6px; }
+.coin-pill i { width: 12px; height: 12px; border-radius: 50%; background: var(--love); }
+.coin-pill b { font-family: var(--display); font-weight: 400; font-size: 17px; color: var(--love); font-variant-numeric: tabular-nums; }
+.room-list, .member-list, .vote-list { display: grid; gap: 6px; }
+.room-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--chip); text-align: left; font-size: 15px; }
+.room-btn small { color: var(--muted); font-size: 13px; }
+.room-btn.on { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 2px var(--accent) inset; }
+.member { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 6px 10px; border-radius: 10px; background: var(--chip); }
+.member .dot { width: 8px; height: 8px; }
+.vote-opt { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--chip); text-align: left; font-size: 16px; position: relative; overflow: hidden; }
+.vote-opt .bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--love); opacity: .16; }
+.vote-opt.mine { border-color: var(--love); }
+.vote-opt span, .vote-opt b { position: relative; }
+.vote-opt small { position: relative; grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.msg .from { display: block; font-size: 11px; font-weight: 600; opacity: .75; margin-bottom: 1px; }
+.focus-pill { gap: 6px; color: var(--accent); font-family: var(--display); font-size: 16px; }
+.big-timer { font-family: var(--display); font-size: 56px; text-align: center; color: var(--accent); font-variant-numeric: tabular-nums; }
+.todo-list { display: grid; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.todo { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--chip); font-size: 15px; }
+.todo input { width: 22px; height: 22px; accent-color: var(--love); flex: none; }
+.todo .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.todo .t small { display: block; font-size: 12px; color: var(--muted); }
+.todo.done .t > span { text-decoration: line-through; color: var(--muted); }
+.todo .del { border: 0; background: transparent; color: var(--muted); font-size: 18px; width: 32px; height: 32px; border-radius: 50%; flex: none; }
+.todo .when { font-family: var(--display); color: var(--love); font-size: 15px; flex: none; }
+.plan-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.plan-form #planTitle { grid-column: 1 / -1; }
+#tour { position: fixed; inset: 0; z-index: 60; }
+.tour-spot { position: absolute; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(30, 20, 15, .55); transition: all .35s ease; pointer-events: none; outline: 3px solid var(--love); }
+.tour-card { position: absolute; left: 50%; transform: translateX(-50%); width: min(380px, calc(100% - 32px)); background: var(--card); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); display: grid; gap: 10px; transition: top .35s ease; }
+.tour-card p { margin: 0; font-size: 16px; line-height: 1.5; }
+.tour-card .row { justify-content: flex-end; }
+#nl-badge-frame { display: none !important; }
+#pipVideo { position: fixed; width: 2px; height: 2px; opacity: 0; pointer-events: none; left: 0; bottom: 0; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div id="room">
+  <canvas id="stage" aria-label="우리 펫들이 사는 방"></canvas>
+
+  <header class="topbar" id="topbar" hidden>
+    <button type="button" class="pill dday unset" id="ddayBtn">처음 만난 날 정하기</button>
+    <button type="button" class="pill who" id="who" aria-label="방 고르기"><span class="dot" id="dot"></span><span id="whoText"></span><span aria-hidden="true">▾</span></button>
+    <button type="button" class="pill focus-pill" id="focusPill" hidden></button>
+    <button type="button" class="pill coin-pill" id="coinPill" aria-label="하트 코인"><i></i><b id="coinTop">0</b></button>
+    <button type="button" class="pill icon-btn" id="menuBtn" aria-label="설정">⋯</button>
+  </header>
+
+  <nav class="actions" id="actions" hidden>
+    <button type="button" class="act love" id="kissBtn">뽀뽀 보내기</button>
+    <button type="button" class="act" id="pokeBtn">콕 찌르기</button>
+    <button type="button" class="act" id="msgBtn">메시지</button>
+    <button type="button" class="act" id="doodleBtn">낙서 쪽지</button>
+    <button type="button" class="act" id="poopBtn">같이 똥 싸기</button>
+    <button type="button" class="act" id="moreBtn" aria-haspopup="menu">더보기</button>
+  </nav>
+  <div id="more" class="menu-pop" role="menu" hidden>
+    <button type="button" id="lunchBtn">점심 뭐 먹지?</button>
+    <button type="button" id="fortuneBtn">오늘의 운세</button>
+    <button type="button" id="pipBtn">바탕화면에 띄우기</button>
+    <button type="button" id="focusBtn">같이 집중하기</button>
+    <button type="button" id="todoBtn">할 일 · 버킷리스트</button>
+    <button type="button" id="planBtn">일정 · 기념일</button>
+    <button type="button" id="roomsBtn">모임방</button>
+    <button type="button" id="decorBtn">방 꾸미기</button>
+    <button type="button" id="sizeBtn">캐릭터 크기</button>
+    <button type="button" id="installBtn">PC에 설치하기</button>
+    <button type="button" id="tourBtn">펫이 알려주는 둘러보기</button>
+    <button type="button" id="helpBtn">사용법</button>
+  </div>
+
+  <!-- loading -->
+  <div class="center" id="loading"><div class="card"><button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button><h2>잠깐만요</h2><p id="loadingText">UriPet을 깨우는 중이에요…</p></div></div>
+
+  <!-- step: profile -->
+  <div class="center" id="setup" hidden>
+    <form class="card" id="setupForm">
+      <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+      <h1>내 펫 고르기</h1>
+      <p>상대 화면에는 이 펫이 나로 보여요. 나중에 바꿀 수 있어요.<br>펫을 고르고 이름을 쓴 다음, 짝꿍과 코드로 연결하면 시작이에요.</p>
+      <div class="pets" id="petPick" role="group" aria-label="펫 고르기"></div>
+      <label class="field" for="nick">내 이름 (상대에게 보이는 이름)
+        <input type="text" id="nick" maxlength="20" autocomplete="nickname" placeholder="예: 안녕" required>
+      </label>
+      <button type="submit" class="btn primary">다음</button>
+      <p class="msg err" id="setupMsg"></p>
+      <div class="or">이미 쓰던 사람이라면</div>
+      <div class="row"><button type="button" class="btn" id="restoreOpen">이어 쓰기 코드로 예전 기록 불러오기</button></div>
+      <div id="restoreBox" hidden style="display:grid; gap:8px">
+        <label class="field" for="restoreCode">이어 쓰기 코드 (8자리)
+          <input type="text" id="restoreCode" class="code-input restore-input" maxlength="9" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" placeholder="ABCD-EFGH">
+        </label>
+        <button type="button" class="btn primary" id="restoreGo">불러오기</button>
+        <p class="note-sm">설정(⋯) 맨 아래에 있는 내 이어 쓰기 코드를 넣으면 이름 · 펫 · 짝 · 메시지가 그대로 돌아와요.</p>
+      </div>
+    </form>
+  </div>
+
+  <!-- step: pairing -->
+  <div class="center" id="pair" hidden>
+    <div class="card">
+      <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+      <h1>짝 맺기</h1>
+      <p class="help"><b>둘 중 한 명만</b> 코드를 만들면 돼요.<br>다른 한 명은 받은 코드를 아래에 넣기만 하면 바로 연결돼요.</p>
+      <div class="field">코드를 만드는 사람</div>
+      <div id="pairCreate" class="row"><button type="button" class="btn primary" id="makeCode">초대 코드 만들기</button></div>
+      <div id="codeBox" hidden>
+        <p>이 코드를 짝꿍에게 보내 주세요. 짝꿍은 코드를 만들지 말고 <b>아래 칸에 이 코드만 넣으면</b> 돼요.</p>
+        <div class="bigcode" id="codeText"></div>
+        <div class="row"><button type="button" class="btn" id="copyCode">코드 복사</button></div>
+        <p class="msg" id="waitMsg">상대를 기다리는 중이에요…</p>
+      </div>
+      <div class="or">또는</div>
+      <form id="joinForm" style="display:grid; gap:10px">
+        <label class="field" for="joinCode">코드를 받은 사람 (만들 필요 없어요)
+          <input type="text" id="joinCode" class="code-input" maxlength="6" autocomplete="off" autocapitalize="characters" inputmode="text" placeholder="ABC234">
+        </label>
+        <button type="submit" class="btn">연결하기</button>
+      </form>
+      <p class="msg" id="pairMsg"></p>
+      <div class="or">친구들과 쓰려면</div>
+      <div class="row"><button type="button" class="btn" id="pairGroups">모임방 만들기 · 들어가기 (최대 8명)</button></div>
+    </div>
+  </div>
+
+  <!-- fatal / config help -->
+  <div class="center" id="fatal" hidden>
+    <div class="card"><button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button><h2>연결하지 못했어요</h2><p id="fatalText"></p><div id="fatalHelp"></div><button type="button" class="btn primary" onclick="location.reload()">다시 시도</button></div>
+  </div>
+
+  <div id="pop" hidden>
+    <button type="button" id="popKiss">뽀뽀하기</button>
+    <button type="button" id="popPoke">콕 찌르기</button>
+    <button type="button" id="popRide">머리 위로 올라가기</button>
+  </div>
+</div>
+
+<!-- settings -->
+<div class="scrim" id="settings" hidden>
+  <form class="card" id="settingsForm">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>설정</h2>
+    <div class="pets" id="petPick2" role="group" aria-label="내 펫 바꾸기"></div>
+    <label class="field" for="nick2">내 이름<input type="text" id="nick2" maxlength="20" required></label>
+    <label class="field" for="metOn">처음 만난 날 (둘이 같이 써요)<input type="date" id="metOn"></label>
+    <label class="field" for="talkLevel">펫이 말하는 빈도
+      <select id="talkLevel"><option value="0">조용히 (말 안 함)</option><option value="1">가끔</option><option value="2">보통</option><option value="3">자주</option><option value="4">수다쟁이</option></select>
+    </label>
+    <label class="field" for="petSize">펫 크기
+      <select id="petSize"><option value="xsmall">아주 작게</option><option value="small">작게</option><option value="medium">보통</option><option value="large">크게</option></select>
+    </label>
+    <label class="check-row" for="stillMode"><input type="checkbox" id="stillMode"> 가만히 있기 (펫이 돌아다니지 않아요)</label>
+    <div class="row"><button type="button" class="btn" id="setCancel">닫기</button><button type="submit" class="btn primary">저장</button></div>
+    <p class="msg" id="setMsg"></p>
+    <div class="or">다른 기기에서 이어 쓰기</div>
+    <p class="note-sm">휴대폰 · 아이패드 · PC 앱, 또는 홈 화면 아이콘으로 새로 열었을 때 이 코드를 넣으면 지금 기록을 그대로 이어 써요. <b>짝꿍에게는 알려 주지 마세요.</b></p>
+    <div class="row"><div class="bigcode small-code" id="myRestore">…</div><button type="button" class="btn" id="copyRestore">복사</button></div>
+    <div class="or">짝</div>
+    <div id="leaveBox" class="row"><button type="button" class="btn danger" id="leaveBtn">짝 끊기</button></div>
+    <div id="leaveConfirm" hidden>
+      <p>정말 끊을까요? D-day와 주고받은 기록이 모두 지워지고, 다시 초대 코드로 연결해야 해요.</p>
+      <div class="row"><button type="button" class="btn" id="leaveNo">아니요</button><button type="button" class="btn danger" id="leaveYes">끊기</button></div>
+    </div>
+  </form>
+</div>
+
+<!-- D-day -->
+<div class="scrim" id="ddayDlg" hidden>
+  <form class="card" id="ddayForm">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>처음 만난 날</h2>
+    <p>만난 날을 1일로 세요. 100일, 200일, 1주년마다 펫들이 축하해요. 상대 화면에도 같은 날짜가 보여요.</p>
+    <label class="field" for="metOn2">날짜<input type="date" id="metOn2" required></label>
+    <div class="row"><button type="button" class="btn" id="ddayCancel">닫기</button><button type="submit" class="btn primary">저장</button></div>
+  </form>
+</div>
+
+<!-- lunch -->
+<div class="scrim" id="lunchDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>점심 뭐 먹지?</h2>
+    <div class="chips" id="lunchCats" role="group" aria-label="종류"></div>
+    <div class="lunch-pick"><small id="lunchCat"></small><strong id="lunchMenu"></strong></div>
+    <div class="row"><button type="button" class="btn" id="lunchAgain">다시 뽑기</button><button type="button" class="btn primary" id="lunchSend">짝꿍한테 같이 먹자고 하기</button></div>
+  </div>
+</div>
+
+<!-- fortune -->
+<div class="scrim" id="fortuneDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>오늘의 운세</h2>
+    <div class="fcard" id="fcard">
+      <canvas id="fPet" width="220" height="220" aria-hidden="true"></canvas>
+      <small id="fDate"></small>
+      <strong id="fName"></strong>
+      <p id="fMsg"></p>
+      <dl class="fmeta"><div><dt>행운의 색</dt><dd id="fColor"></dd></div><div><dt>행운의 숫자</dt><dd id="fNum"></dd></div><div><dt>오늘 우리 온도</dt><dd id="fTemp"></dd></div></dl>
+    </div>
+    <div class="row"><button type="button" class="btn" id="fSaved">저장한 카드</button><button type="button" class="btn primary" id="fSave">카드 저장</button></div>
+    <div id="fList" class="flist" hidden></div>
+  </div>
+</div>
+
+<!-- doodle -->
+<div class="scrim" id="doodleDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>낙서 쪽지</h2>
+    <p>그려서 보내면 짝꿍 펫이 쪽지를 들고 와요.</p>
+    <canvas id="pad" class="pad" width="720" height="520" aria-label="그림판"></canvas>
+    <div class="row tools" id="padTools">
+      <button type="button" class="sw on" data-c="#2F2925" style="--sw:#2F2925" aria-label="검정"></button>
+      <button type="button" class="sw" data-c="#E8607A" style="--sw:#E8607A" aria-label="분홍"></button>
+      <button type="button" class="sw" data-c="#3E7CC4" style="--sw:#3E7CC4" aria-label="파랑"></button>
+      <button type="button" class="sw" data-c="#4E9A5B" style="--sw:#4E9A5B" aria-label="초록"></button>
+      <button type="button" class="btn small" data-c="eraser">지우개</button>
+      <button type="button" class="btn small" id="padClear">다 지우기</button>
+    </div>
+    <div class="row"><button type="button" class="btn primary" id="padSend">보내기</button></div>
+  </div>
+</div>
+
+<!-- received note -->
+<div class="scrim" id="noteDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2 id="noteTitle">쪽지가 왔어요</h2>
+    <img id="noteImg" class="note-img" alt="받은 낙서 쪽지">
+    <p id="noteMeta"></p>
+    <div class="row"><button type="button" class="btn primary" id="noteNext">다음 쪽지</button></div>
+  </div>
+</div>
+
+<!-- how to use -->
+<div class="scrim" id="helpDlg" hidden>
+  <div class="card help-card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>UriPet 사용법</h2>
+    <p>내 펫과 짝꿍 펫이 화면 아래를 같이 돌아다녀요. 이렇게 놀아 보세요.</p>
+    <ul class="howto">
+      <li><b>뽀뽀 보내기</b><span>두 펫이 다가가서 쪽! 짝꿍 화면에서도 똑같이 해요.</span></li>
+      <li><b>메시지</b><span>짝꿍에게 한마디를 보내면 짝꿍 펫이 말풍선으로 전해 줘요. 지난 메시지도 모아 볼 수 있어요.</span></li>
+      <li><b>콕 찌르기</b><span>짝꿍 화면에 "OO이 보고 싶대!" 말풍선이 떠요.</span></li>
+      <li><b>낙서 쪽지</b><span>그림을 그려 보내면 짝꿍 펫이 쪽지를 들고 있어요. 펫을 누르면 펼쳐져요.</span></li>
+      <li><b>같이 똥 싸기</b><span>하나가 싸면 다른 하나도 따라 해요. 바닥의 똥을 누르면 치워져요.</span></li>
+      <li><b>끌어서 옮기기 · 던지기</b><span>펫을 손가락(마우스)으로 집어 옮겨요. 휙 던지면 날아가요. 짝꿍 화면에서도 같이 움직여요.</span></li>
+      <li><b>머리 위로 올라가기</b><span>내 펫을 집어서 짝꿍 펫 머리 위에 놓거나, 캐릭터를 두 번 눌러 "짝꿍 머리 위로 올라가기"를 누르세요. 짝꿍 화면에서도 같이 올라가요.</span></li>
+      <li><b>방 꾸미기</b><span>더보기 → 방 꾸미기에서 캣타워 · 쿠션 · 책장 같은 가구를 놓아요. 둘이 같이 쓰는 방이라 짝꿍 화면에도 보이고, 펫들이 올라가서 놀아요.</span></li>
+      <li><b>모임방 (최대 8명)</b><span>위쪽 가운데 이름을 누르거나 더보기 → 모임방에서 모임을 만들고 코드를 친구들에게 알려 주세요. 모두의 펫이 한 화면에 모이고, 단체 메시지 · 낙서 · 콕 · 던지기 · 머리 위 · 다 같이 똥 · 점심 투표 · 모임방 꾸미기를 할 수 있어요.</span></li>
+      <li><b>같이 집중하기</b><span>더보기 → 같이 집중하기로 15·25·50분 타이머를 켜면 펫들이 책상에 앉아요. 짝꿍이나 친구가 "나도 같이"를 누르면 함께 집중하고, 끝까지 하면 하트를 받아요.</span></li>
+      <li><b>할 일 · 버킷리스트</b><span>둘이(또는 모임이) 같이 쓰는 목록이에요. 누가 체크하면 모두의 펫이 축하해요.</span></li>
+      <li><b>일정 · 기념일</b><span>데이트, 생일, 기념일을 적어 두면 하루 전과 당일에 펫이 알려 줘요.</span></li>
+      <li><b>하트 코인</b><span>하루 한 번 앱을 열면 출석 하트 10개! 켜 둔 시간이 1시간 쌓일 때마다 5개씩 더 받아요 (하루 최대 25개). 오른쪽 위 하트를 누르면 상점이 열려요.</span></li>
+      <li><b>쓰다듬기</b><span>내 펫 머리를 누르면 좋아하고, 몸을 누르면 간지러워해요.</span></li>
+      <li><b>짝꿍 펫 누르기</b><span>뽀뽀 · 콕 찌르기 메뉴가 나와요.</span></li>
+      <li><b>더보기</b><span>점심 메뉴 추천, 오늘의 운세, 바탕화면에 띄우기, PC 설치, 사용법.</span></li>
+      <li><b>왼쪽 위 D+숫자</b><span>처음 만난 날을 정하면 둘 다 같은 D-day가 보여요.</span></li>
+      <li><b>오른쪽 위 ⋯</b><span>내 펫 · 이름 바꾸기, 말하는 빈도, 가만히 있기, 짝 끊기.</span></li>
+    </ul>
+    <h3>항상 화면에 띄워 두려면</h3>
+    <ul class="howto">
+      <li><b>Windows PC</b><span>"PC에 설치하기"로 설치하면 바탕화면 아래에서 펫이 늘 걸어 다녀요. 컴퓨터를 켜면 자동으로 실행돼요. 작업표시줄의 ♥ 아이콘으로 끄고 켤 수 있어요.</span></li>
+      <li><b>기기를 바꾸거나 홈 화면 아이콘으로 새로 열 때</b><span>⋯ 설정 맨 아래의 "이어 쓰기 코드"를 새 화면 첫 페이지의 "이어 쓰기 코드로 예전 기록 불러오기"에 넣으면 짝과 기록이 그대로 돌아와요.</span></li>
+      <li><b>아이패드 · 아이폰</b><span>Safari 공유 버튼 → "홈 화면에 추가"로 앱처럼 쓰세요. 다른 앱을 쓰는 동안에도 보고 싶으면 더보기 → "바탕화면에 띄우기"를 누르세요. 작은 창에 두 펫만 떠요. 애플 정책상 앱을 열고 버튼을 한 번 눌러야 떠요.</span></li>
+    </ul>
+    <div class="row"><button type="button" class="btn" id="helpInstall">PC에 설치하기</button><button type="button" class="btn primary" id="helpOk">알겠어요</button></div>
+  </div>
+</div>
+
+<!-- messages -->
+<div class="scrim" id="msgDlg" hidden>
+  <div class="card msg-card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2 id="msgTitle">메시지</h2>
+    <div class="msg-list" id="msgList" aria-live="polite"></div>
+    <form class="msg-form" id="msgForm">
+      <input type="text" id="msgText" maxlength="200" autocomplete="off" placeholder="짝꿍에게 한마디" aria-label="메시지">
+      <button type="submit" class="btn primary">보내기</button>
+    </form>
+  </div>
+</div>
+
+<!-- rooms: couple room + group rooms -->
+<div class="scrim" id="roomsDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>방 고르기</h2>
+    <p class="note-sm">짝꿍과 둘만 쓰는 방과, 친구들과 같이 쓰는 모임방(최대 8명)을 오갈 수 있어요.</p>
+    <div class="room-list" id="roomList"></div>
+    <div id="groupInfo" hidden>
+      <div class="or">지금 모임</div>
+      <p class="note-sm">친구에게 이 코드를 알려 주면 모임에 들어올 수 있어요.</p>
+      <div class="row"><div class="bigcode small-code" id="groupCode"></div><button type="button" class="btn" id="copyGroupCode">복사</button></div>
+      <div class="member-list" id="memberList"></div>
+      <div class="row" id="leaveGroupBox"><button type="button" class="btn danger" id="leaveGroupBtn">이 모임 나가기</button></div>
+      <div id="leaveGroupConfirm" hidden><p>정말 나갈까요? 다시 들어오려면 코드가 필요해요.</p><div class="row"><button type="button" class="btn" id="leaveGroupNo">아니요</button><button type="button" class="btn danger" id="leaveGroupYes">나가기</button></div></div>
+    </div>
+    <div class="or">새 모임</div>
+    <form class="row" id="createGroupForm"><input type="text" id="groupName" maxlength="20" placeholder="모임 이름 (예: 우리 회사 점심팟)" aria-label="모임 이름" style="flex:1 1 200px"><button type="submit" class="btn primary">모임 만들기</button></form>
+    <form class="row" id="joinGroupForm"><input type="text" id="groupJoinCode" class="code-input" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="모임 코드" aria-label="모임 코드" style="flex:1 1 160px"><button type="submit" class="btn">모임 들어가기</button></form>
+    <p class="msg" id="roomsMsg"></p>
+  </div>
+</div>
+
+<!-- pick a friend -->
+<div class="scrim" id="pickDlg" hidden>
+  <div class="card">
+    <button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2 id="pickTitle">누구에게?</h2>
+    <div class="feat-grid" id="pickGrid"></div>
+  </div>
+</div>
+
+<!-- lunch vote (groups) -->
+<div class="scrim" id="voteDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>점심 투표</h2>
+    <p class="note-sm" id="voteInfo"></p>
+    <div class="vote-list" id="voteList"></div>
+    <div class="row"><button type="button" class="btn primary" id="voteNew">새 투표 열기</button></div>
+  </div>
+</div>
+
+<!-- focus together -->
+<div class="scrim" id="focusDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>같이 집중하기</h2>
+    <p class="note-sm" id="focusInfo">타이머를 시작하면 펫들이 책상에 앉아요. 같이 끝까지 하면 5분마다 하트 1개 (한 번에 최대 12개, 하루 30개).</p>
+    <div class="big-timer" id="focusClock" hidden></div>
+    <div class="row" id="focusStartRow"><button type="button" class="btn" data-min="15">15분</button><button type="button" class="btn primary" data-min="25">25분</button><button type="button" class="btn" data-min="50">50분</button></div>
+    <div class="row" id="focusJoinRow" hidden><button type="button" class="btn primary" id="focusJoin">나도 같이 집중하기</button></div>
+    <div class="row" id="focusStopRow" hidden><button type="button" class="btn danger" id="focusStop">그만하기</button></div>
+  </div>
+</div>
+
+<!-- to-do & bucket list -->
+<div class="scrim" id="todoDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2 id="todoTitle">같이 쓰는 할 일</h2>
+    <div class="chips" role="tablist"><button type="button" id="tabTodo" aria-pressed="true">할 일</button><button type="button" id="tabBucket" aria-pressed="false">데이트 버킷리스트</button></div>
+    <form class="row" id="todoForm"><input type="text" id="todoText" maxlength="100" autocomplete="off" placeholder="예: 이번 주말 영화 보기" aria-label="할 일" style="flex:1 1 200px"><button type="submit" class="btn primary">추가</button></form>
+    <div class="todo-list" id="todoList"></div>
+  </div>
+</div>
+
+<!-- plans & anniversaries -->
+<div class="scrim" id="planDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>일정 · 기념일</h2>
+    <p class="note-sm">하루 전과 당일에 펫이 알려 줘요. 생일과 기념일은 매년 알려 줘요.</p>
+    <form class="plan-form" id="planForm">
+      <input type="text" id="planTitle" maxlength="40" placeholder="예: OO이랑 데이트, 짝꿍 생일" aria-label="제목" required>
+      <input type="date" id="planDay" aria-label="날짜" required>
+      <select id="planKind" aria-label="종류"><option value="date">데이트 · 약속</option><option value="birthday">생일 (매년)</option><option value="anniv">기념일 (매년)</option><option value="etc">기타</option></select>
+      <button type="submit" class="btn primary">추가</button>
+    </form>
+    <div class="todo-list" id="planList"></div>
+  </div>
+</div>
+
+<!-- guided tour -->
+<div id="tour" hidden>
+  <div class="tour-spot" id="tourSpot"></div>
+  <div class="tour-card" id="tourCard"><p id="tourText"></p><div class="row"><button type="button" class="btn small" id="tourSkip">건너뛰기</button><button type="button" class="btn small primary" id="tourNext">다음</button></div></div>
+</div>
+
+<!-- shop -->
+<div class="scrim" id="shopDlg" hidden>
+  <div class="card shop-card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>방 꾸미기 상점</h2>
+    <div class="coin-row"><span class="coin"><i></i>하트 코인 <b id="coinNum">300</b></span><button type="button" class="btn small" disabled>코인 충전 · 준비 중</button></div>
+    <p class="note-sm"><b>하트 모으기</b> · 하루 한 번 앱을 열면 출석 하트 10개, 앱을 켜 둔 시간이 1시간 쌓일 때마다 5개씩 더 받아요 (하루 최대 25개).</p>
+    <p class="note-sm">고른 가구는 우리 둘의 방에 놓여요. 짝꿍 화면에도 똑같이 보이고, 펫들이 올라가서 놀아요.</p>
+    <h3 class="shop-h">무료 가구</h3>
+    <div class="shop-grid" id="shopFree"></div>
+    <h3 class="shop-h">프리미엄 가구 <small>결제 준비 중</small></h3>
+    <div class="shop-grid" id="shopPaid"></div>
+  </div>
+</div>
+
+<div id="decorBar" hidden>
+  <span>방 꾸미는 중 · 가구를 끌어서 옮기고, × 로 치워요</span>
+  <button type="button" class="btn small" id="decorShop">상점</button>
+  <button type="button" class="btn small primary" id="decorDone">완료</button>
+</div>
+
+<!-- floating window (iPad / phone) -->
+<div class="scrim" id="pipDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>떠 있는 창</h2>
+    <p>아래 버튼을 누르면 작은 창에 두 펫이 떠요. 그다음 홈 화면으로 나가거나 다른 앱을 열어도 계속 보여요. 창은 손가락으로 옮기고, 옆으로 밀면 숨겨져요.</p>
+    <video id="pipVideo" class="pip-preview" playsinline muted loop autoplay></video>
+    <p class="msg" id="pipMsg"></p>
+    <button type="button" class="btn primary" id="pipGo" disabled>띄우기</button>
+  </div>
+</div>
+
+<!-- all features (double-click a character) -->
+<div class="scrim" id="featDlg" hidden>
+  <div class="card">
+    <button type="button" class="min-btn" aria-label="잠시 접기" title="잠시 접기">–</button><button type="button" class="x-btn" aria-label="닫기">×</button>
+    <h2>무엇을 할까요?</h2>
+    <p class="feat-tip">캐릭터를 두 번 누르면 언제든 이 메뉴가 열려요.</p>
+    <div class="feat-grid" id="featGrid"></div>
+  </div>
+</div>
+<button type="button" id="restorePill" hidden><i></i>UriPet 창 펼치기</button>
+<div id="toast" role="status" hidden></div>
+
+
+<script>
+(() => {
+'use strict';
+const SUPABASE_URL = 'https://sukmfrubuaaiksjfibpu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Ri0VoK6K8BFA6MUBRMRjpA_ZQA1azY4';
+const PETS = [['mongle', '몽글이'], ['dotori', '도토'], ['chapssal', '찹쌀이'], ['danbi', '단비'], ['mongsil', '몽실'], ['kongi', '콩이']];
+const PET_NAME = Object.fromEntries(PETS);
+const $ = id => document.getElementById(id);
+const TAU = Math.PI * 2;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DESKTOP = !!window.desktop;
+if (DESKTOP) document.documentElement.classList.add('desktop');
+
+/* older Safari (iPadOS 15 and below) has no roundRect */
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    r = Math.min(typeof r === 'number' ? r : 0, w / 2, h / 2);
+    this.moveTo(x + r, y); this.arcTo(x + w, y, x + w, y + h, r); this.arcTo(x + w, y + h, x, y + h, r);
+    this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath(); return this;
+  };
+}
+window.addEventListener('error', e => { try { const t = document.getElementById('toast'); t.textContent = '오류: ' + (e.message || e.error); t.hidden = false; } catch (_) {} });
+
+let prefs = { talk: 2, still: false, size: DESKTOP ? 'small' : 'medium' };
+const SIZE_MUL = { xsmall: .55, small: .75, medium: 1, large: 1.25 };
+try { Object.assign(prefs, JSON.parse(localStorage.getItem('uripet-prefs') || '{}')); } catch (e) {}
+function savePrefs() { try { localStorage.setItem('uripet-prefs', JSON.stringify(prefs)); } catch (e) {} }
+/* =================== drawing =================== */
+let g = null;
+function E(x, y, rx, ry, rot = 0) { g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, TAU); }
+function rr(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function eyes(mode, pts, r, color) {
+  g.fillStyle = color; g.strokeStyle = color; g.lineWidth = 2.6; g.lineCap = 'round';
+  for (const [x, y] of pts) {
+    if (mode === 'open') { E(x, y, r, r * 1.15); g.fill(); g.fillStyle = '#fff'; E(x - r * .35, y - r * .4, r * .38, r * .38); g.fill(); g.fillStyle = color; }
+    else if (mode === 'blink') { g.beginPath(); g.moveTo(x - r, y); g.lineTo(x + r, y); g.stroke(); }
+    else if (mode === 'closed') { g.beginPath(); g.arc(x, y - 1, r, .15 * Math.PI, .85 * Math.PI); g.stroke(); }
+    else if (mode === 'happy') { g.beginPath(); g.moveTo(x - r, y + 1.5); g.lineTo(x, y - r * .9); g.lineTo(x + r, y + 1.5); g.stroke(); }
+  }
+}
+function blush(pts, c = 'rgba(244,140,150,.45)') { g.fillStyle = c; for (const [x, y] of pts) { E(x, y, 6, 3.6); g.fill(); } }
+function pucker(x, y, color) { g.strokeStyle = color; g.lineWidth = 2.2; g.lineCap = 'round'; g.beginPath(); g.arc(x + 1, y - 2.2, 2.4, -Math.PI / 2, Math.PI / 2); g.stroke(); g.beginPath(); g.arc(x + 1, y + 2.4, 2.4, -Math.PI / 2, Math.PI / 2); g.stroke(); }
+function heart(x, y, s, c) { g.save(); g.translate(x, y); g.scale(s, s); g.fillStyle = c; g.beginPath(); g.moveTo(0, 6); g.bezierCurveTo(-12, -2, -8, -12, 0, -6); g.bezierCurveTo(8, -12, 12, -2, 0, 6); g.fill(); g.restore(); }
+
+const DRAW = {
+  mongle(p) {
+    const step = p.walk ? Math.sin(p.t * 18) : 0;
+    g.fillStyle = '#6E5D57';
+    if (!p.sleep) [[-28, step], [-10, -step], [10, step], [28, -step]].forEach(([x, s]) => { rr(x - 5, -18 - Math.max(0, s) * 5, 10, 18, 5); g.fill(); });
+    const puffs = [[-32, -40, 22], [-14, -60, 25], [12, -64, 25], [34, -46, 22], [22, -26, 22], [-18, -26, 22], [0, -44, 28]];
+    g.fillStyle = '#CDBDAE'; puffs.forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r + 3, 0, TAU); g.fill(); });
+    g.fillStyle = '#FCF8F2'; puffs.forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); });
+    g.fillStyle = 'rgba(255,255,255,.9)'; E(-20, -62, 9, 6, -.4); g.fill();
+    g.strokeStyle = '#B99A7E'; g.lineWidth = 4; g.lineCap = 'round';
+    [[2, -66], [36, -64]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, 6, Math.PI * .9, Math.PI * 2.4); g.stroke(); });
+    g.fillStyle = '#F2CDB5'; E(20, -40, 21, 18); g.fill();
+    eyes(p.eyes, [[12, -44], [29, -44]], 3.4, '#3A2E2B'); blush([[6, -34], [35, -34]]);
+    if (p.kiss) { blush([[6, -34], [35, -34]], 'rgba(240,90,120,.55)'); pucker(22, -34, '#3A2E2B'); return; }
+    g.strokeStyle = '#3A2E2B'; g.lineWidth = 2; g.beginPath();
+    if (p.eyes === 'happy') g.arc(20.5, -35, 4.5, .1 * Math.PI, .9 * Math.PI); else { g.moveTo(17, -34); g.quadraticCurveTo(18.7, -32, 20.5, -34); g.quadraticCurveTo(22.3, -32, 24, -34); }
+    g.stroke();
+  },
+  dotori(p) {
+    const step = p.walk ? Math.sin(p.t * 16) : 0;
+    g.fillStyle = '#8A5A33';
+    if (!p.sleep) { E(-14, -4 - Math.max(0, step) * 4, 10, 6); g.fill(); E(14, -4 - Math.max(0, -step) * 4, 10, 6); g.fill(); }
+    E(0, -40, 38, 38); g.fill(); g.fillStyle = '#D9964F'; E(0, -40, 35, 35); g.fill();
+    g.fillStyle = 'rgba(255,230,190,.55)'; E(-16, -48, 7, 12, .3); g.fill();
+    g.save(); g.beginPath(); g.moveTo(-43, -56); g.quadraticCurveTo(-41, -92, 0, -94); g.quadraticCurveTo(41, -92, 43, -56); g.quadraticCurveTo(0, -46, -43, -56); g.closePath();
+    g.fillStyle = '#7B4F2E'; g.fill(); g.clip(); g.strokeStyle = '#5F3B21'; g.lineWidth = 2;
+    for (let i = -60; i <= 60; i += 9) { g.beginPath(); g.moveTo(i, -100); g.lineTo(i + 30, -40); g.stroke(); g.beginPath(); g.moveTo(i, -100); g.lineTo(i - 30, -40); g.stroke(); }
+    g.restore();
+    g.strokeStyle = '#5F3B21'; g.lineWidth = 3; g.beginPath(); g.moveTo(-43, -56); g.quadraticCurveTo(0, -46, 43, -56); g.stroke();
+    g.fillStyle = '#5E3B22'; rr(-3, -104, 7, 13, 3); g.fill();
+    g.fillStyle = '#86AA5F'; E(13, -103, 11, 5, -.35 + Math.sin(p.t * 2.4) * .12); g.fill();
+    eyes(p.eyes, [[-10, -36], [14, -36]], 5, '#2A1D15'); blush([[-19, -25], [23, -25]]);
+    if (p.kiss) { blush([[-19, -25], [23, -25]], 'rgba(240,90,120,.55)'); pucker(5, -26, '#2A1D15'); return; }
+    g.strokeStyle = '#2A1D15'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath();
+    if (p.eyes === 'happy') { g.moveTo(-2, -26); g.quadraticCurveTo(2, -19, 6, -26); } else { g.arc(0, -27, 2.6, 0, Math.PI); g.moveTo(9.2, -27); g.arc(4, -27, 2.6, 0, Math.PI); }
+    g.stroke();
+  },
+  chapssal(p) {
+    const flop = Math.sin(p.t * (p.walk ? 9 : 2)) * (p.walk ? .14 : .05);
+    [[-24, -46, -1.05 + flop], [-6, -50, -.75 - flop]].forEach(([x, y, r]) => {
+      g.fillStyle = '#D9CCC0'; E(x, y, 11, 28, r); g.fill(); g.fillStyle = '#FFFDF9'; E(x, y, 8.5, 25.5, r); g.fill(); g.fillStyle = '#F6C3CC'; E(x + 1, y, 4, 17, r); g.fill();
+    });
+    g.fillStyle = '#D9CCC0'; E(-46, -12, 9, 8); g.fill(); g.fillStyle = '#FFFDF9'; E(-46, -12, 7, 6); g.fill();
+    g.beginPath(); g.moveTo(-48, -2); g.bezierCurveTo(-52, -66, 52, -66, 48, -2); g.quadraticCurveTo(0, 5, -48, -2); g.closePath();
+    g.lineWidth = 6; g.strokeStyle = '#D9CCC0'; g.stroke(); g.fillStyle = '#FFFDF9'; g.fill();
+    g.fillStyle = 'rgba(255,255,255,.95)'; E(-18, -40, 10, 6, -.35); g.fill();
+    eyes(p.eyes, [[10, -26], [30, -26]], 3.2, '#3B3534'); blush([[4, -17], [37, -17]], 'rgba(246,150,165,.5)');
+    if (p.kiss) { blush([[4, -17], [37, -17]], 'rgba(240,90,120,.55)'); pucker(22, -19, '#3B3534'); return; }
+    g.strokeStyle = '#3B3534'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath();
+    if (p.eyes === 'happy') g.arc(20, -20, 4, .1 * Math.PI, .9 * Math.PI); else { g.moveTo(18, -19); g.lineTo(20, -17); g.lineTo(22, -19); }
+    g.stroke();
+  },
+  danbi(p) { drawHuman(p, { hair: '#4A342B', style: 'bob', top: '#F4C24F', topDark: '#D9A433', bottom: '#5B6C8F', shoe: '#3C3A44' }); },
+  mongsil(p) { drawHuman(p, { hair: '#7A5236', style: 'curly', top: '#FFFFFF', stripe: '#6F9BD1', topDark: '#C9D3E0', bottom: '#4E5B4A', shoe: '#8A4B3A' }); },
+  kongi(p) { drawHuman(p, { hair: '#2F2724', style: 'bun', top: '#FBE1E6', topDark: '#E9BCC6', bottom: '#7FA2C9', shoe: '#F08CA0', overalls: true }); },
+};
+/* chibi human — origin = feet center, facing right */
+function drawHuman(p, o) {
+  const skin = '#F8DAC6', skinLine = '#E2B49B';
+  const step = p.walk ? Math.sin(p.t * 14) : 0;
+  const sway = p.walk ? Math.sin(p.t * 7) * .06 : 0;
+  // back hair (behind everything)
+  g.fillStyle = o.hair;
+  if (o.style === 'bob') { g.beginPath(); g.ellipse(0, -72, 40, 36, sway, Math.PI * .95, Math.PI * 2.05); g.lineTo(38, -50); g.quadraticCurveTo(0, -42, -38, -50); g.closePath(); g.fill(); }
+  if (o.style === 'bun') { E(-2, -116, 14, 13); g.fill(); g.fillStyle = '#F08CA0'; E(-14, -108, 6, 4, -.5); g.fill(); E(10, -108, 6, 4, .5); g.fill(); E(-2, -106, 3.5, 3.5); g.fill(); }
+  // legs + shoes
+  if (!p.sleep) {
+    [[-9, Math.max(0, step)], [7, Math.max(0, -step)]].forEach(([x, lift]) => {
+      g.fillStyle = skin; g.beginPath(); g.roundRect(x - 4.5, -18 - lift * 4, 9, 14, 4); g.fill();
+      g.fillStyle = o.shoe; E(x + 2, -4 - lift * 4, 7.5, 4.5); g.fill();
+    });
+  }
+  // arms (swing while walking)
+  [[-21, -34, .25 + step * .35], [21, -34, -.25 - step * .35]].forEach(([x, y, r]) => {
+    g.save(); g.translate(x, y - 4); g.rotate(r);
+    g.fillStyle = o.topDark; g.beginPath(); g.roundRect(-5, 0, 10, 14, 5); g.fill();
+    g.fillStyle = skin; E(0, 15, 4.5, 4.5); g.fill();
+    g.restore();
+  });
+  // body
+  g.fillStyle = o.bottom; g.beginPath(); g.roundRect(-17, -26, 34, 12, 5); g.fill();
+  g.fillStyle = o.top; g.beginPath(); g.roundRect(-19, -46, 38, 26, 11); g.fill();
+  if (o.stripe) { g.save(); g.beginPath(); g.roundRect(-19, -46, 38, 26, 11); g.clip(); g.fillStyle = o.stripe; for (let y = -42; y < -20; y += 7) g.fillRect(-20, y, 40, 3); g.restore(); }
+  if (o.overalls) { g.fillStyle = o.bottom; g.beginPath(); g.roundRect(-11, -38, 22, 20, 4); g.fill(); g.fillRect(-10, -46, 4, 10); g.fillRect(6, -46, 4, 10); g.fillStyle = '#F6E7B0'; E(-8, -37, 2, 2); g.fill(); E(8, -37, 2, 2); g.fill(); }
+  if (o.style === 'bob') { g.fillStyle = o.topDark; g.beginPath(); g.arc(0, -46, 9, 0, Math.PI); g.fill(); }
+  // head
+  g.fillStyle = skinLine; E(2, -74, 35, 32); g.fill();
+  g.fillStyle = skin; E(2, -74, 33, 30); g.fill();
+  g.fillStyle = skin; E(-31, -72, 5, 7); g.fill();
+  // front hair
+  g.fillStyle = o.hair;
+  if (o.style === 'bob' || o.style === 'bun') {
+    g.beginPath(); g.moveTo(-32, -70); g.bezierCurveTo(-34, -112, 38, -112, 36, -70);
+    g.quadraticCurveTo(30, -88, 18, -86); g.quadraticCurveTo(10, -80, 2, -86); g.quadraticCurveTo(-8, -80, -16, -86); g.quadraticCurveTo(-26, -84, -32, -70); g.closePath(); g.fill();
+    if (o.style === 'bob') { g.beginPath(); g.moveTo(-33, -74); g.quadraticCurveTo(-40, -56, -34, -48); g.lineTo(-27, -50); g.quadraticCurveTo(-30, -62, -28, -74); g.closePath(); g.fill(); }
+  } else {
+    [[-28, -84, 10], [-18, -98, 11], [-4, -104, 12], [12, -103, 11], [26, -94, 10], [33, -80, 8], [-31, -70, 8], [4, -92, 10], [-12, -90, 9], [20, -88, 9]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); });
+  }
+  g.fillStyle = 'rgba(255,255,255,.18)'; E(-6, -98, 10, 4, -.2); g.fill();
+  // face
+  eyes(p.eyes, [[-4, -70], [18, -70]], 3.8, '#2E2420');
+  blush([[-12, -61], [27, -61]]);
+  if (p.kiss) { blush([[-12, -61], [27, -61]], 'rgba(240,90,120,.55)'); pucker(9, -60, '#8A3B3B'); return; }
+  g.strokeStyle = '#8A3B3B'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath();
+  if (p.eyes === 'happy') g.arc(7, -62, 4.5, .1 * Math.PI, .9 * Math.PI); else if (p.sleep) { g.arc(7, -60, 2, 0, TAU); } else { g.moveTo(4, -61); g.quadraticCurveTo(7, -58, 10, -61); }
+  g.stroke();
+}
+
+const FRONT = { mongle: 42, dotori: 38, chapssal: 46, danbi: 38, mongsil: 40, kongi: 38 };
+const HEIGHT = { mongle: 92, dotori: 106, chapssal: 80, danbi: 112, mongsil: 116, kongi: 130 };
+
+/* pet picker previews */
+function buildPicker(boxId, onPick) {
+  const box = $(boxId); box.replaceChildren();
+  const items = PETS.map(([id, name]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pet-opt'; b.dataset.pet = id; b.setAttribute('aria-pressed', 'false');
+    const c = document.createElement('canvas'); c.width = 220; c.height = 220;
+    const s = document.createElement('span'); s.textContent = name;
+    b.append(c, s); b.onclick = () => { items.forEach(x => x.setAttribute('aria-pressed', x === b)); onPick(id); };
+    box.append(b); return b;
+  });
+  return { set(id) { items.forEach(x => x.setAttribute('aria-pressed', x.dataset.pet === id)); }, canvases: items.map(b => [b.dataset.pet, b.querySelector('canvas')]) };
+}
+const pickers = [];
+function drawPickers(t) {
+  for (const pk of pickers) for (const [id, c] of pk.canvases) {
+    if (!c.isConnected || c.offsetParent === null) continue;
+    g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 220, 220);
+    const b = reduce ? 0 : Math.sin(t * 2.4) * .03;
+    g.translate(110, 196); g.scale(1.75 * (1 + b), 1.75 * (1 - b));
+    DRAW[id]({ t, eyes: (t % 3.4) < .13 ? 'blink' : 'open' });
+  }
+}
+
+/* =================== room simulation =================== */
+const stage = $('stage'), ctx = stage.getContext('2d');
+let W = 0, H = 0, DPR = 1, SC = 1;
+const pets = { me: null, partner: null };
+let scene = null; // { type: 'kiss' | 'party', t0, phase }
+let particles = [];
+let colors = {};
+function readColors() { const cs = getComputedStyle(document.documentElement); for (const k of ['card', 'ink', 'muted', 'love', 'line', 'floor']) colors[k] = cs.getPropertyValue('--' + k).trim(); }
+readColors(); matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+
+function resize() {
+  DPR = Math.min(2.5, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  stage.width = Math.round(W * DPR); stage.height = Math.round(H * DPR);
+  const base = DESKTOP ? 1 : Math.max(.75, Math.min(1.5, Math.min(W, H) / 460));
+  SC = base * (SIZE_MUL[prefs.size] || 1);
+}
+addEventListener('resize', resize); resize();
+const groundY = () => DESKTOP ? H - 4 : H - Math.max(110, H * .17);
+const now = () => performance.now() / 1000;
+const rand = (a, b) => a + Math.random() * (b - a);
+function makePet(role, kind, x, owner) { return { role, kind, x, owner, online: false, dir: role === 'me' ? 1 : -1, state: 'idle', until: now() + rand(1, 3), hop: 0, hopV: 0, bubble: null, react: 0 }; }
+function allPets() { return [pets.me, pets.partner, ...(pets.others || [])].filter(Boolean); }
+function petByOwner(id) { return allPets().find(p => p.owner === id) || null; }
+function margin() { return 60 * SC; }
+/* a pet can stand on the partner's head (ride) or on furniture (perch) */
+function anchorPos(p, depth = 0) {
+  const a = p.anchor; if (!a || depth > 2) return null;
+  if (a.type === 'ride') { const b = a.base; const bp = anchorPos(b, depth + 1); return { x: (bp ? bp.x : b.x), h: (bp ? bp.h : b.hop) + HEIGHT[b.kind] * .86 }; }
+  const it = roomItems.find(i => i.id === a.itemId), d = it && DECOR[it.item], pl = d && d.plats[a.idx];
+  return pl ? { x: itemX(it) + pl.dx * SC, h: pl.h } : null;
+}
+function effHop(p) { const ap = p.anchor && anchorPos(p); return ap ? ap.h : p.hop; }
+function riderOf(p) { return allPets().find(o => o && o !== p && o.anchor && o.anchor.type === 'ride' && o.anchor.base === p); }
+function startLeap(p, anchor, dur = .65) {
+  p.leap = { t0: now(), dur, fx: p.x, fh: effHop(p), anchor }; p.anchor = null; p.state = 'idle'; p.fly = false; p.bubble = null;
+  const tmp = { anchor, kind: p.kind }; const ap = anchorPos(tmp); if (ap) p.dir = ap.x >= p.x ? 1 : -1;
+}
+function dropOff(p, line) { const h = effHop(p); p.anchor = null; p.leap = null; p.hop = h; p.hopV = 0; p.until = now() + rand(1.5, 3); if (line) say(p, line, 1.6); }
+function rideOn(p, base, share = true) {
+  if (!p || !base || p === base || p.fly || base.fly) return false;
+  if (base.anchor && base.anchor.type === 'ride' && base.anchor.base === p) dropOff(base);
+  startLeap(p, { type: 'ride', base }); say(p, '영차!', 1.2);
+  const ch = activeChannel(); if (share && ch) ch.send({ type: 'broadcast', event: 'ride', payload: { owner: ownerOf(p), on: ownerOf(base), by: uid, room: roomKey() } });
+  return true;
+}
+function applyRemoteRide(m) {
+  if (m.by === uid) return;
+  if (m.room && m.room !== roomKey()) return;
+  const find = petByOwner;
+  const p = find(m.owner), base = find(m.on); if (!p || !base) return;
+  if (scene) scene = null;
+  rideOn(p, base, false);
+}
+function updateAnchor(p, t) {
+  if (p.leap) {
+    const L = p.leap, k = Math.min(1, (t - L.t0) / L.dur), ap = anchorPos({ anchor: L.anchor, kind: p.kind });
+    if (!ap) { p.leap = null; return true; }
+    p.x = L.fx + (ap.x - L.fx) * k; p.hop = L.fh + (ap.h - L.fh) * k + Math.sin(k * Math.PI) * 70;
+    if (k >= 1) {
+      p.leap = null; p.anchor = L.anchor; p.hop = ap.h;
+      if (L.anchor.type === 'ride') { say(p, '높다!', 2); say(L.anchor.base, '무거워!', 2); p.react = t + 1.5; p.until = t + rand(8, 16); }
+      else { p.until = t + rand(6, 12); if (Math.random() < .4) p.state = 'sleep'; }
+    }
+    return true;
+  }
+  if (!p.anchor) return false;
+  const a = p.anchor, ap = anchorPos(p);
+  if (!ap) { dropOff(p); return false; }
+  if (a.type === 'ride') {
+    const b = a.base;
+    if (b.drag || b.fly || b.leap || b.squat > t || b.state === 'sleep' || scene) { dropOff(p, '으악!'); return false; }
+  }
+  p.x = ap.x; p.hop = ap.h;
+  if (t > p.until && !scene) { const h = p.hop; p.anchor = null; p.hop = h; p.hopV = 220; p.dir = Math.random() < .5 ? -1 : 1; p.until = t + rand(2, 4); p.state = 'idle'; }
+  return true;
+}
+function pickState(p) {
+  const r = Math.random();
+  if (!prefs.still && r < .18 && !scene) {
+    const free = platforms().filter(pl => !allPets().some(o => o !== p && o.anchor && o.anchor.type === 'perch' && o.anchor.itemId === pl.it.id && o.anchor.idx === pl.idx));
+    if (free.length) { const pl = free[Math.floor(Math.random() * free.length)]; startLeap(p, { type: 'perch', itemId: pl.it.id, idx: pl.idx }, .7); return; }
+  }
+  if (prefs.still) { if (r < .75) { p.state = 'idle'; p.until = now() + rand(3, 6); } else { p.state = 'sleep'; p.until = now() + rand(4, 8); } return; }
+  if (r < .45) { p.state = 'walk'; p.dir = Math.random() < .5 ? -1 : 1; p.until = now() + rand(2, 5); }
+  else if (r < .82) { p.state = 'idle'; p.until = now() + rand(2, 4); }
+  else { p.state = 'sleep'; p.until = now() + rand(4, 8); }
+}
+function jump(p, v = 340) { if (p.hop <= 0) p.hopV = v; }
+function say(p, text, secs = 3.5) { p.bubble = { text, until: now() + secs }; }
+
+function updatePet(p, dt, t) {
+  if (p.drag) return;
+  if (p.fly) { updateFlight(p, dt, t); return; }
+  if (updateAnchor(p, t)) return;
+  if (isFocusing(p)) { if (p.hopV || p.hop > 0) { p.hop += p.hopV * dt; p.hopV -= 1400 * dt; if (p.hop <= 0) { p.hop = 0; p.hopV = 0; } } p.state = 'idle'; p.until = t + 5; return; }
+  // gravity hop
+  if (p.hopV || p.hop > 0) { p.hop += p.hopV * dt; p.hopV -= 1400 * dt; if (p.hop <= 0) { p.hop = 0; p.hopV = 0; } }
+  if (scene) return;
+  if (t > p.until) pickState(p);
+  if (p.state === 'walk' && !reduce) {
+    p.x += p.dir * 55 * SC * dt;
+    if (p.x < margin()) { p.x = margin(); p.dir = 1; }
+    if (p.x > W - margin()) { p.x = W - margin(); p.dir = -1; }
+  }
+}
+
+function updateFlight(p, dt, t) {
+  const lo = margin() * .6, hi = W - margin() * .6;
+  p.x += p.vx * dt; p.hop += p.vy * dt; p.vy -= 1400 * dt; p.spin = (p.spin || 0) + (p.vx >= 0 ? 1 : -1) * 9 * dt;
+  if (p.x < lo) { p.x = lo; p.vx = Math.abs(p.vx) * .6; }
+  if (p.x > hi) { p.x = hi; p.vx = -Math.abs(p.vx) * .6; }
+  const ceiling = (H - 40) / SC;
+  if (p.hop > ceiling) { p.hop = ceiling; p.vy = -Math.abs(p.vy) * .4; }
+  const other = p.hitDone ? null : allPets().find(o => o !== p && !o.fly && !o.drag && Math.abs(p.x - o.x) < 46 * SC && p.hop < HEIGHT[o.kind] * .8);
+  if (other) {
+    p.hitDone = true; p.vx *= -.45; jump(other, 380); other.dizzy = t + 2.2; say(other, '아야!', 1.8);
+  }
+  if (p.hop <= 0) {
+    p.hop = 0;
+    if (p.vy < -320) { p.vy = -p.vy * .42; p.vx *= .7; }
+    else { p.fly = false; p.vx = p.vy = 0; p.spin = 0; p.dizzy = t + 2.6; p.state = 'idle'; p.until = t + 3; say(p, '어지러워…', 2.2); }
+  }
+}
+
+function startKiss() {
+  for (const q of allPets()) if (q.anchor || q.leap) dropOff(q);
+  if (!pets.me || !pets.partner) return;
+  scene = { type: 'kiss', phase: 'walk', t0: now() };
+  pets.me.state = pets.partner.state = 'walk';
+}
+function startParty(text) {
+  scene = { type: 'party', t0: now() };
+  for (const p of [pets.me, pets.partner]) if (p) { say(p, text, 4); }
+}
+function spawnHearts(x, y, n = 6, big = true) {
+  const t = now();
+  if (big) particles.push({ x, y, born: t, life: 1.6, big: true });
+  for (let i = 0; i < n; i++) particles.push({ x: x + rand(-20, 20), y: y + 10, vx: rand(-60, 60), vy: rand(-90, -40), born: t + i * .07, life: 1.4, big: false });
+}
+function updateScene(dt, t) {
+  if (!scene) return;
+  const A = pets.me.x <= pets.partner.x ? pets.me : pets.partner, B = A === pets.me ? pets.partner : pets.me;
+  const k = t - scene.t0;
+  if (scene.type === 'party') {
+    if (Math.floor(k * 2.2) !== scene.lastHop) { scene.lastHop = Math.floor(k * 2.2); jump(A, 300); jump(B, 300); if (scene.lastHop % 2 === 0) spawnHearts((A.x + B.x) / 2, groundY() - 140 * SC, 4, false); }
+    if (k > 4) { scene = null; A.until = B.until = t + 2; A.state = B.state = 'idle'; }
+    return;
+  }
+  const contact = (FRONT[A.kind] + FRONT[B.kind] - 4) * SC;
+  if (scene.phase === 'walk') {
+    A.dir = 1; B.dir = -1; A.state = B.state = 'walk';
+    const step = 120 * SC * dt;
+    if (B.x - A.x > contact) { A.x = Math.min(A.x + step, (A.x + B.x) / 2 - contact / 2 + step); B.x = Math.max(B.x - step, A.x + contact); }
+    if (B.x - A.x <= contact + .5 || k > 6) { const mid = (A.x + B.x) / 2; A.x = mid - contact / 2; B.x = mid + contact / 2; scene.phase = 'lean'; scene.t0 = t; A.state = B.state = 'idle'; }
+  } else if (scene.phase === 'lean' && k > .45) { scene.phase = 'kiss'; scene.t0 = t; spawnHearts((A.x + B.x) / 2, groundY() - 120 * SC); }
+  else if (scene.phase === 'kiss' && k > 1.3) { scene.phase = 'happy'; scene.t0 = t; jump(A, 260); jump(B, 260); }
+  else if (scene.phase === 'happy' && k > 1.2) { scene = null; A.until = B.until = t + rand(1.5, 3); }
+}
+function poseOf(p, t) {
+  const pose = { eyes: (t + (p.role === 'me' ? 0 : 1.3)) % 3.6 < .13 ? 'blink' : 'open', kiss: false, walk: p.state === 'walk', sleep: p.state === 'sleep', lean: 0, sx: 1, sy: 1 };
+  if (p.state === 'sleep') { pose.eyes = 'closed'; const b = Math.sin(t * 1.3) * .02; pose.sx = 1.07 + b; pose.sy = .9 - b; }
+  else if (p.state === 'walk') { const ph = (t * 2.6 + (p.role === 'me' ? 0 : .4)) % 1; if (!reduce && p.hop === 0) { const land = ph < .12 || ph > .9; pose.sx = land ? 1.06 : .97; pose.sy = land ? .94 : 1.04; pose.bob = Math.sin(ph * Math.PI) * 6; } }
+  else { const b = reduce ? 0 : Math.sin(t * 2.4 + (p.role === 'me' ? 0 : 2)) * .025; pose.sx = 1 + b; pose.sy = 1 - b; }
+  if (p.react > t) pose.eyes = 'happy';
+  if (p.hop > 0) { pose.sy = 1.08; pose.sx = .95; }
+  if (scene && scene.type === 'kiss') {
+    const k = t - scene.t0;
+    if (scene.phase === 'lean') { pose.lean = Math.min(1, k / .45) * .17; pose.eyes = 'closed'; pose.kiss = true; pose.sy = 1.05; }
+    else if (scene.phase === 'kiss') { pose.lean = .17; pose.eyes = 'closed'; pose.kiss = true; pose.sy = 1.05; pose.sx = .97; }
+    else if (scene.phase === 'happy') { pose.eyes = 'happy'; }
+  }
+  if (scene && scene.type === 'party') pose.eyes = 'happy';
+  if (p.squat > t) { pose.walk = false; pose.sleep = false; pose.eyes = 'closed'; pose.sx = 1.12; pose.sy = .84; pose.lean = reduce ? 0 : Math.sin(t * 30) * .02; pose.bob = 0; }
+  if (p.dizzy > t && !p.fly) { pose.walk = false; pose.eyes = 'closed'; pose.lean = reduce ? 0 : Math.sin(t * 9) * .1; }
+  if (p.fly) { pose.walk = true; pose.sleep = false; pose.eyes = 'closed'; pose.lean = reduce ? 0 : p.spin; pose.sx = 1; pose.sy = 1; pose.bob = 0; }
+  if ((p.anchor && p.anchor.type === 'ride') || p.leap) { pose.walk = false; pose.sx = 1.03; pose.sy = .97; pose.bob = 0; if (!p.leap && (t * .5) % 4 < .8) pose.eyes = 'happy'; }
+  if (riderOf(p)) { pose.sy *= .95; pose.sx *= 1.03; }
+  if (p.drag) { pose.walk = true; pose.sleep = false; pose.eyes = 'open'; pose.sx = .93; pose.sy = 1.1; pose.lean = reduce ? 0 : Math.sin(t * 7) * .12; pose.bob = 0; }
+  return pose;
+}
+
+function drawRoom(t) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
+  const gy = groundY();
+  if (!DESKTOP) { ctx.fillStyle = colors.floor; ctx.fillRect(0, gy + 6, W, H - gy); }
+  if (!pets.me) return;
+  poops = poops.filter(o => t - o.born < 120);
+  drawDecor(t);
+  for (const o of poops) { const age = t - o.born; ctx.globalAlpha = age > 115 ? (120 - age) / 5 : 1; drawPoop(o.x, gy, SC * Math.min(1, age * 4 + .2)); ctx.globalAlpha = 1; }
+  const order = allPets().slice(1).concat(pets.me).sort((a, b) => (a.anchor || a.leap ? 1 : 0) - (b.anchor || b.leap ? 1 : 0));
+  for (const p of order) {
+    if (!p) continue;
+    const pose = poseOf(p, t);
+    const off = (p.role === 'partner' && !partnerOnline) || (p.role === 'friend' && !p.online);
+    g = ctx;
+    ctx.globalAlpha = off ? .45 : 1;
+    const lift = (p.hop + (pose.bob || 0)) * SC;
+    const sh = 1 - Math.min(.5, lift / 120);
+    if (!p.anchor && !p.leap) { ctx.fillStyle = 'rgba(120,70,40,.16)'; ctx.beginPath(); ctx.ellipse(p.x, gy, 40 * SC * sh, 6 * SC * sh, 0, 0, TAU); ctx.fill(); }
+    ctx.save(); ctx.translate(p.x, gy - lift); ctx.scale(SC * p.dir, SC); ctx.rotate(pose.lean); ctx.scale(pose.sx, pose.sy);
+    DRAW[p.kind]({ t, ...pose });
+    ctx.restore();
+    if (isFocusing(p)) drawDesk(p, gy, t);
+    // name tag
+    ctx.font = `${Math.round(13 * Math.min(1.3, SC))}px "Gowun Dodum", sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = colors.muted;
+    const label = p.role === 'me' ? '나' : (p.role === 'friend' ? p.name : (partner ? partner.nickname : '')) + (off ? ' · 자리 비움' : '');
+    if (DESKTOP) { if (off) ctx.fillText(label, p.x, gy - lift - (HEIGHT[p.kind] + 6) * SC); }
+    else ctx.fillText(label, p.x, gy + 26 * Math.min(1.3, SC));
+    ctx.globalAlpha = 1;
+    if (p.state === 'sleep' && !scene) {
+      ctx.fillStyle = colors.muted;
+      for (let i = 0; i < 3; i++) { const ph = ((t * .45) + i / 3) % 1; ctx.globalAlpha = (1 - ph) * (off ? .5 : 1); ctx.font = `${(12 + ph * 10) * SC}px Jua, sans-serif`; ctx.fillText('z', p.x + (30 + ph * 26) * SC * p.dir, gy - (HEIGHT[p.kind] + ph * 30) * SC); }
+      ctx.globalAlpha = 1;
+    }
+    if (p.role === 'partner' && notes.length) drawNoteIcon(p.x + 34 * SC, gy - lift - (HEIGHT[p.kind] - 6) * SC + Math.sin(t * 3) * 4, notes.length);
+    if (p.bubble && p.bubble.until > t) drawBubble(p.x, gy - lift - (HEIGHT[p.kind] + 18) * SC, p.bubble.text);
+    else p.bubble = null;
+  }
+  ctx.textAlign = 'start';
+  if (scene && scene.type === 'kiss' && scene.phase === 'kiss') {
+    const k = t - scene.t0;
+    if (k < 1) { ctx.globalAlpha = Math.min(1, (1 - k) * 2); ctx.fillStyle = colors.love; ctx.font = `${Math.round(30 * SC)}px Jua, sans-serif`; ctx.textAlign = 'center'; ctx.fillText('쪽!', (pets.me.x + pets.partner.x) / 2, gy - (150 + k * 14) * SC); ctx.textAlign = 'start'; ctx.globalAlpha = 1; }
+  }
+  particles = particles.filter(h => t - h.born < h.life);
+  for (const h of particles) {
+    const age = t - h.born; if (age < 0) continue;
+    ctx.globalAlpha = Math.max(0, 1 - age / h.life);
+    if (h.big) { const pop = age < .25 ? .4 + age / .25 * .9 : 1.3 - Math.min(.2, (age - .25) * .3); heart(h.x, h.y - age * 14 * SC, pop * 2 * SC, '#EE5B7A'); }
+    else heart(h.x + h.vx * age * SC, h.y + h.vy * age * SC, .9 * SC, '#F48BA0');
+  }
+  ctx.globalAlpha = 1;
+}
+let poops = [];
+/* =================== room decoration =================== */
+const DECOR = {
+  rug: { name: '포근한 러그', price: 0, w: 160, hgt: 14, layer: 0, plats: [], draw() {
+    g.fillStyle = '#E3AE9B'; E(0, -3, 80, 10); g.fill(); g.fillStyle = '#F6D7CB'; E(0, -3, 66, 7); g.fill();
+    g.strokeStyle = '#E3AE9B'; g.lineWidth = 2; for (const r of [20, 40]) { g.beginPath(); g.ellipse(0, -3, r * 1.3, r * .13, 0, 0, TAU); g.stroke(); } } },
+  cushion: { name: '말랑 쿠션', price: 0, w: 100, hgt: 32, layer: 1, plats: [{ dx: 0, h: 22, w: 84 }], draw() {
+    g.fillStyle = '#E99AAE'; rr(-46, -26, 92, 24, 12); g.fill(); g.fillStyle = '#F6B9C7'; rr(-42, -28, 84, 16, 8); g.fill();
+    g.fillStyle = '#E28599'; for (const x of [-20, 0, 20]) { E(x, -20, 2.2, 2.2); g.fill(); } } },
+  cattower: { name: '캣타워', price: 0, w: 120, hgt: 215, layer: 1, plats: [{ dx: -30, h: 72, w: 64 }, { dx: 28, h: 138, w: 60 }, { dx: -8, h: 204, w: 76 }], draw(t) {
+    g.fillStyle = '#B98E67'; rr(-60, -10, 120, 10, 4); g.fill();
+    for (const pl of this.plats) { g.fillStyle = '#DDC29C'; g.fillRect(pl.dx - 6, -pl.h, 12, pl.h - 8); g.strokeStyle = '#C6A27A'; g.lineWidth = 1.5;
+      for (let y = -pl.h + 6; y < -10; y += 7) { g.beginPath(); g.moveTo(pl.dx - 6, y); g.lineTo(pl.dx + 6, y + 3); g.stroke(); } }
+    for (const pl of this.plats) { g.fillStyle = '#B98E67'; rr(pl.dx - pl.w / 2, -pl.h - 2, pl.w, 12, 6); g.fill(); g.fillStyle = '#EEDCC6'; rr(pl.dx - pl.w / 2 + 2, -pl.h - 6, pl.w - 4, 9, 5); g.fill(); }
+    const sw = Math.sin(t * 2) * 4; g.strokeStyle = '#8D6B4C'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(52, -144); g.lineTo(54 + sw, -112); g.stroke();
+    g.fillStyle = '#F07C93'; E(54 + sw, -108, 6, 6); g.fill(); } },
+  shelf: { name: '원목 책장', price: 0, w: 116, hgt: 140, layer: 1, plats: [{ dx: 0, h: 138, w: 100 }], draw() {
+    g.fillStyle = '#C79A6B'; rr(-56, -138, 112, 138, 6); g.fill(); g.fillStyle = '#A97B4F'; rr(-48, -128, 96, 56, 3); g.fill(); rr(-48, -64, 96, 56, 3); g.fill();
+    const books = [['#E8A5A0', 14], ['#9CC3D9', 10], ['#F2D27E', 12], ['#A8C99A', 9], ['#D7B5E6', 13]];
+    let x = -44; for (const [c, w] of books) { g.fillStyle = c; g.fillRect(x, -124 + (w % 3) * 2, w, 52 - (w % 3) * 2); x += w + 2; }
+    x = -40; for (const [c, w] of books.slice().reverse().slice(0, 3)) { g.fillStyle = c; g.fillRect(x, -58, w, 50); x += w + 3; }
+    g.fillStyle = '#8FB98A'; E(30, -24, 12, 14); g.fill(); g.fillStyle = '#D9825B'; rr(22, -16, 16, 8, 2); g.fill(); } },
+  plant: { name: '몬스테라 화분', price: 0, w: 70, hgt: 115, layer: 1, plats: [], draw(t) {
+    const sw = Math.sin(t * 1.4) * .04;
+    g.save(); g.translate(0, -34); g.rotate(sw);
+    for (const [a, l] of [[-1.1, 58], [-.55, 74], [0, 80], [.5, 70], [1.05, 56]]) { g.save(); g.rotate(a); g.fillStyle = a % 2 ? '#5E9C67' : '#76B07B'; E(0, -l / 2 - 8, 13, l / 2); g.fill(); g.restore(); }
+    g.restore();
+    g.fillStyle = '#D9825B'; g.beginPath(); g.moveTo(-20, -36); g.lineTo(20, -36); g.lineTo(14, 0); g.lineTo(-14, 0); g.closePath(); g.fill();
+    g.fillStyle = '#C46F4B'; g.fillRect(-21, -38, 42, 6); } },
+  lamp: { name: '스탠드 조명', price: 0, w: 60, hgt: 155, layer: 1, plats: [], draw() {
+    const glow = g.createRadialGradient(0, -138, 4, 0, -138, 70); glow.addColorStop(0, 'rgba(255,226,150,.45)'); glow.addColorStop(1, 'rgba(255,226,150,0)');
+    g.fillStyle = glow; E(0, -138, 70, 70); g.fill();
+    g.fillStyle = '#6E625A'; E(0, -3, 18, 4); g.fill(); g.fillRect(-2, -130, 4, 128);
+    g.fillStyle = '#FBE3A8'; g.beginPath(); g.moveTo(-24, -152); g.lineTo(24, -152); g.lineTo(17, -126); g.lineTo(-17, -126); g.closePath(); g.fill(); } },
+  bed: { name: '하트 침대', price: 500, locked: true, w: 130, hgt: 80, layer: 1, plats: [], draw() {
+    heart(-46, -58, 2.6, '#EE7A93'); g.fillStyle = '#F2C6CF'; rr(-62, -30, 124, 26, 8); g.fill(); g.fillStyle = '#FFFDF9'; rr(-56, -42, 112, 16, 8); g.fill();
+    g.fillStyle = '#FBE1E6'; rr(-50, -52, 34, 14, 7); g.fill(); g.fillStyle = '#C79A6B'; g.fillRect(-60, -6, 8, 6); g.fillRect(52, -6, 8, 6); } },
+  sofa: { name: '구름 소파', price: 400, locked: true, w: 140, hgt: 70, layer: 1, plats: [], draw() {
+    g.fillStyle = '#DCE8F5'; for (const [x, y, r] of [[-48, -40, 22], [-18, -52, 26], [18, -52, 26], [48, -40, 22]]) { E(x, y, r, r * .9); g.fill(); }
+    g.fillStyle = '#EEF4FB'; rr(-66, -34, 132, 30, 15); g.fill(); g.fillStyle = '#B8C8DC'; g.fillRect(-56, -6, 8, 6); g.fillRect(48, -6, 8, 6); } },
+  moon: { name: '별빛 무드등', price: 300, locked: true, w: 70, hgt: 80, layer: 1, plats: [], draw() {
+    const glow = g.createRadialGradient(0, -44, 4, 0, -44, 50); glow.addColorStop(0, 'rgba(255,236,160,.6)'); glow.addColorStop(1, 'rgba(255,236,160,0)'); g.fillStyle = glow; E(0, -44, 50, 50); g.fill();
+    g.fillStyle = '#FBE28A'; g.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 12 : 28, a = -Math.PI / 2 + i * Math.PI / 5; g.lineTo(Math.cos(a) * r, -44 + Math.sin(a) * r); } g.closePath(); g.fill();
+    g.fillStyle = '#C9B7E8'; rr(-16, -14, 32, 14, 5); g.fill(); } },
+  cherry: { name: '벚꽃 나무', price: 800, locked: true, season: '봄 한정', w: 140, hgt: 170, layer: 1, plats: [], draw() {
+    g.fillStyle = '#8D6B4C'; rr(-8, -90, 16, 90, 6); g.fill();
+    g.fillStyle = '#F7C6D3'; for (const [x, y, r] of [[-38, -110, 30], [0, -138, 36], [38, -112, 30], [-18, -96, 26], [22, -94, 26]]) { E(x, y, r, r * .85); g.fill(); }
+    g.fillStyle = '#EE9AB2'; for (const [x, y] of [[-30, -120], [10, -150], [40, -104], [-6, -100]]) { E(x, y, 4, 4); g.fill(); } } },
+  snowman: { name: '눈사람', price: 600, locked: true, season: '겨울 한정', w: 80, hgt: 120, layer: 1, plats: [], draw() {
+    g.fillStyle = '#FFFFFF'; g.strokeStyle = '#D5DDE6'; g.lineWidth = 2; E(0, -30, 32, 30); g.fill(); g.stroke(); E(0, -82, 24, 23); g.fill(); g.stroke();
+    g.fillStyle = '#E8607A'; rr(-24, -64, 48, 9, 4); g.fill(); g.fillRect(10, -60, 8, 18);
+    g.fillStyle = '#2F2925'; E(-8, -86, 2.5, 3); g.fill(); E(8, -86, 2.5, 3); g.fill(); g.fillStyle = '#F29B4B'; g.beginPath(); g.moveTo(0, -80); g.lineTo(14, -78); g.lineTo(0, -76); g.fill();
+    g.fillStyle = '#4A3F3A'; g.fillRect(-16, -110, 32, 6); g.fillRect(-11, -124, 22, 15); } },
+};
+let roomItems = [], decorMode = false, decorDrag = null;
+function itemX(it) { return it.x * W; }
+function drawDecor(t) {
+  const gy = groundY();
+  const list = roomItems.slice().sort((a, b) => (DECOR[a.item] ? DECOR[a.item].layer : 1) - (DECOR[b.item] ? DECOR[b.item].layer : 1));
+  for (const it of list) {
+    const d = DECOR[it.item]; if (!d) continue;
+    g = ctx; ctx.save(); ctx.translate(itemX(it), gy); ctx.scale(SC, SC); d.draw(t); ctx.restore();
+    if (decorMode) {
+      ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = colors.love; ctx.lineWidth = 1.5;
+      ctx.strokeRect(itemX(it) - d.w / 2 * SC, gy - d.hgt * SC - 6, d.w * SC, d.hgt * SC + 10); ctx.restore();
+      const bx = itemX(it) + d.w / 2 * SC, by = gy - d.hgt * SC - 6;
+      ctx.fillStyle = colors.love; E(bx, by, 13, 13); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = '16px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('×', bx, by + 5.5); ctx.textAlign = 'start';
+    }
+  }
+}
+function decorAt(x, y) {
+  const gy = groundY();
+  for (let i = roomItems.length - 1; i >= 0; i--) {
+    const it = roomItems[i], d = DECOR[it.item]; if (!d) continue;
+    const bx = itemX(it) + d.w / 2 * SC, by = gy - d.hgt * SC - 6;
+    if (Math.hypot(x - bx, y - by) < 18) return { it, remove: true };
+    if (Math.abs(x - itemX(it)) < d.w / 2 * SC && y > gy - d.hgt * SC - 6 && y < gy + 10) return { it, remove: false };
+  }
+  return null;
+}
+function platforms() {
+  const out = [];
+  for (const it of roomItems) { const d = DECOR[it.item]; if (!d) continue; d.plats.forEach((pl, idx) => out.push({ it, idx, x: itemX(it) + pl.dx * SC, h: pl.h, w: pl.w })); }
+  return out;
+}
+function drawPoop(x, gy, s) {
+  g = ctx; ctx.save(); ctx.translate(x, gy); ctx.scale(s, s);
+  ctx.fillStyle = '#7C5236'; E(0, -6, 17, 7.5); ctx.fill(); E(0, -14, 13, 6.5); ctx.fill(); E(0, -21, 8.5, 5.5); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-3, -24); ctx.quadraticCurveTo(4, -34, 6, -28); ctx.quadraticCurveTo(3, -24, -3, -24); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.3)'; E(-6, -15, 4, 2); ctx.fill(); E(-4, -7, 5, 2); ctx.fill();
+  ctx.fillStyle = '#2A1A10'; E(-4, -12, 1.8, 2.2); ctx.fill(); E(4, -12, 1.8, 2.2); ctx.fill();
+  ctx.fillStyle = 'rgba(244,140,150,.55)'; E(-8, -9, 3, 1.8); ctx.fill(); E(8, -9, 3, 1.8); ctx.fill();
+  ctx.restore();
+}
+function drawNoteIcon(x, y, n) {
+  g = ctx; const s = Math.min(1.4, SC);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-.12); ctx.scale(s, s);
+  ctx.fillStyle = '#FFFDF6'; ctx.strokeStyle = '#D9C6B0'; ctx.lineWidth = 1.5; rr(-14, -11, 28, 22, 4); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#E2D3C2'; ctx.beginPath(); ctx.moveTo(-9, -3); ctx.lineTo(9, -3); ctx.moveTo(-9, 3); ctx.lineTo(4, 3); ctx.stroke();
+  heart(8, 6, .55, '#E8607A');
+  if (n > 1) { ctx.fillStyle = '#E8607A'; E(13, -11, 7, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(n), 13, -7.5); }
+  ctx.restore();
+}
+function drawBubble(x, y, text) {
+  const fs = Math.round(15 * Math.min(1.35, SC));
+  ctx.font = `${fs}px "Gowun Dodum", sans-serif`;
+  const w = ctx.measureText(text).width + 24, h = fs + 18;
+  let bx = Math.max(8, Math.min(W - w - 8, x - w / 2));
+  g = ctx; ctx.fillStyle = colors.card; ctx.strokeStyle = colors.line; ctx.lineWidth = 1.5;
+  rr(bx, y - h, w, h, h / 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 7, y - 1); ctx.lineTo(x, y + 8); ctx.lineTo(x + 7, y - 1); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = colors.ink; ctx.textAlign = 'left'; ctx.fillText(text, bx + 12, y - h / 2 + fs * .36);
+}
+
+/* =================== pet lines =================== */
+const LINES = {
+  morning: ['좋은 아침!', '오늘도 같이 힘내자', '아침은 먹었어?', '커피 한 잔 할까?', '일어나느라 고생했어'],
+  lunch: ['배고파…', '점심 뭐 먹지?', '밥 먹고 하자!', '꼬르륵…'],
+  afternoon: ['졸려…', '기지개 한 번 켜자', '물 마셨어?', '조금만 더 힘내!', '간식 먹을 시간 아니야?'],
+  evening: ['오늘 수고했어', '저녁 맛있는 거 먹자', '이제 좀 쉬어도 돼', '퇴근이다!'],
+  night: ['아직 안 자?', '이제 자야지…', '내일 또 놀자', '눈이 감겨…'],
+  monday: ['월요일이다… 천천히 가자', '월요일은 커피가 두 배로 필요해'],
+  friday: ['금요일이다!', '조금만 버티면 주말이야'],
+  weekend: ['주말엔 푹 쉬어', '오늘은 느긋하게 놀자'],
+  any: ['심심해', '나 여기 있어!', '흥얼흥얼~', '쓰다듬어 줘', '자세 바르게!', '눈 한 번 깜빡깜빡', '오늘 하늘 봤어?'],
+  couple: ['{p} 보고 싶다', '{p}한테 뽀뽀 보낼까?', '{p}는 지금 뭐 할까?', '{p} 생각 중…', '{p}한테 쪽지 그려 줄까?'],
+};
+const TALK_GAP = [null, [360, 600], [180, 300], [80, 160], [35, 70]];
+let nextTalk = now() + 20;
+function pickLine() {
+  const d = new Date(), h = d.getHours(), wd = d.getDay(), pool = [...LINES.any];
+  if (h >= 5 && h < 11) pool.push(...LINES.morning, ...LINES.morning);
+  else if (h >= 11 && h < 14) pool.push(...LINES.lunch, ...LINES.lunch);
+  else if (h >= 14 && h < 18) pool.push(...LINES.afternoon, ...LINES.afternoon);
+  else if (h >= 18 && h < 22) pool.push(...LINES.evening, ...LINES.evening);
+  else pool.push(...LINES.night, ...LINES.night);
+  if (wd === 1) pool.push(...LINES.monday); if (wd === 5) pool.push(...LINES.friday); if (wd === 0 || wd === 6) pool.push(...LINES.weekend);
+  if (partner) pool.push(...LINES.couple.map(l => l.replace(/\{p\}(는|한테)?/g, (m, j) => j === '는' ? josa(partner.nickname, '은', '는') : partner.nickname + (j || ''))));
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function maybeTalk(t) {
+  const gap = TALK_GAP[prefs.talk];
+  if (!gap) { nextTalk = t + 30; return; }
+  if (t < nextTalk) return;
+  nextTalk = t + rand(gap[0], gap[1]);
+  if (scene || pets.me.bubble || pets.me.fly || pets.me.drag || pets.me.state === 'sleep') return;
+  say(pets.me, pickLine(), 4);
+}
+
+let last = now();
+function loop() {
+  const t = now(), dt = Math.min(.05, t - last); last = t;
+  if (pets.me) { for (const q of allPets()) updatePet(q, dt, t); if (pets.partner) updateScene(dt, t); maybeTalk(t); }
+  drawRoom(t);
+  drawPickers(t);
+  if (!$('fortuneDlg').hidden && me) { const c = $('fPet'); g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 220, 220); const b = reduce ? 0 : Math.sin(t * 2.4) * .03; g.translate(110, 200); g.scale(1.6 * (1 + b), 1.6 * (1 - b)); DRAW[me.pet]({ t, eyes: 'happy' }); }
+  if (pipOn) drawPip();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* tapping pets */
+function petAt(x, y) {
+  const gy = groundY();
+  for (const p of allPets().slice().reverse()) {
+    if (!p) continue;
+    if (Math.abs(x - p.x) < 52 * SC && y < gy + 10 && y > gy - (HEIGHT[p.kind] + 20) * SC - effHop(p) * SC && y < gy + 10 - effHop(p) * SC + 10) return p;
+  }
+  return null;
+}
+/* drag a pet — synced live to the partner's screen */
+let drag = null, lastMoveSent = 0;
+function ownerOf(p) { return p.owner; }
+function sendMove(p, final = false) {
+  const t = performance.now();
+  if (!final && t - lastMoveSent < 50) return;
+  lastMoveSent = t;
+  const ch = activeChannel(); if (ch) ch.send({ type: 'broadcast', event: 'move', payload: { owner: ownerOf(p), x: p.x / W, h: p.hop, drag: !final, by: uid, room: roomKey() } });
+}
+stage.addEventListener('pointerdown', e => {
+  const p = petAt(e.clientX, e.clientY); if (!p || scene || p.fly) return;
+  stage.setPointerCapture(e.pointerId);
+  drag = { p, id: e.pointerId, sx: e.clientX, sy: e.clientY, moved: false, ox: p.x - e.clientX, oy: (groundY() - p.hop * SC) - e.clientY };
+});
+stage.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const p = drag.p;
+  if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 8) {
+    if (p.anchor || p.leap) { p.hop = effHop(p); p.anchor = null; p.leap = null; }
+    drag.moved = true; p.drag = true; p.hopV = 0; p.state = 'idle'; $('pop').hidden = true;
+  }
+  if (!drag.moved) return;
+  const nx = Math.max(margin() * .6, Math.min(W - margin() * .6, e.clientX + drag.ox));
+  const nh = Math.max(0, (groundY() - (e.clientY + drag.oy)) / SC);
+  const tm = performance.now() / 1000, dtm = Math.max(.008, tm - (drag.lt || tm - .016));
+  drag.vx = .6 * ((nx - p.x) / dtm) + .4 * (drag.vx || 0);
+  drag.vh = .6 * ((nh - p.hop) / dtm) + .4 * (drag.vh || 0);
+  drag.lt = tm;
+  p.x = nx; p.hop = nh;
+  sendMove(p);
+});
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag, { p, moved } = d; drag = null;
+  if (!moved) return;
+  p.drag = false; p.hopV = 0; p.until = now() + rand(1.5, 3);
+  suppressClick = true; setTimeout(() => { suppressClick = false; }, 50);
+  const fresh = performance.now() / 1000 - (d.lt || 0) < .12;
+  const vx = fresh ? d.vx || 0 : 0, vh = fresh ? d.vh || 0 : 0;
+  if (Math.hypot(vx, vh * SC) > 650) {
+    throwPet(p, Math.max(-2600, Math.min(2600, vx)), Math.max(-200, Math.min(1500, vh)));
+    const ch = activeChannel(); if (ch) ch.send({ type: 'broadcast', event: 'toss', payload: { owner: ownerOf(p), x: p.x / W, h: p.hop, vx: p.vx / W, vy: p.vy, by: uid, room: roomKey() } });
+  } else {
+    sendMove(p, true);
+    const other = riderOf(p) ? null : allPets().find(o => o !== p && Math.abs(p.x - o.x) < 46 * SC && p.hop > HEIGHT[o.kind] * .5 && p.hop < HEIGHT[o.kind] + 140);
+    if (other) { rideOn(p, other); return; }
+    const pl = platforms().find(q => Math.abs(p.x - q.x) < q.w / 2 * SC && Math.abs(p.hop - q.h) < 45);
+    if (pl) { p.anchor = { type: 'perch', itemId: pl.it.id, idx: pl.idx }; p.hop = pl.h; p.until = now() + rand(6, 12); say(p, '여기 좋다!', 1.6); }
+  }
+}
+let suppressClick = false;
+function throwPet(p, vx, vy) { p.fly = true; p.vx = vx; p.vy = vy; p.hitDone = false; p.spin = 0; p.state = 'idle'; p.bubble = null; }
+function applyRemoteToss(m) {
+  if (m.by === uid) return;
+  const p = (m.room && m.room !== roomKey()) ? null : petByOwner(m.owner);
+  if (!p) return;
+  if (scene) scene = null;
+  p.anchor = null; p.leap = null;
+  p.drag = false; p.x = m.x * W; p.hop = m.h || 0;
+  throwPet(p, m.vx * W, m.vy);
+  if (p.role === 'me') toast(`${josa(partner.nickname, '이', '가')} 내 펫을 던졌어요!`);
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+let heldNoticeAt = 0;
+function applyRemoteMove(m) {
+  if (m.by === uid) return;
+  const p = (m.room && m.room !== roomKey()) ? null : petByOwner(m.owner);
+  if (!p || (drag && drag.p === p)) return;
+  if (scene) scene = null;
+  p.anchor = null; p.leap = null;
+  p.x = Math.max(margin() * .6, Math.min(W - margin() * .6, m.x * W));
+  p.hop = Math.max(0, m.h || 0);
+  if (m.drag) {
+    if (!p.drag && p.role === 'me' && now() - heldNoticeAt > 6) { heldNoticeAt = now(); say(p, `${josa(partner.nickname, '이', '가')} 날 잡았어!`, 2.5); }
+    p.drag = true; p.hopV = 0; p.state = 'idle';
+  } else { p.drag = false; p.hopV = 0; p.until = now() + rand(1.5, 3); }
+}
+
+/* double-click (double-tap) a character → every feature in one place */
+function openFeatures() {
+  if (mode === 'group') return openGroupFeatures();
+  const grid = $('featGrid'); grid.replaceChildren();
+  const paired = couple && couple.member_b;
+  const sections = [
+    ['짝꿍에게', [
+      ['♥', '뽀뽀 보내기', () => sendEvent('kiss'), 'love'],
+      ['콕', '콕 찌르기', () => sendEvent('poke')],
+      ['↑', '짝꿍 머리 위로 올라가기', () => { if (!rideOn(pets.me, pets.partner)) toast('지금은 올라갈 수 없어요'); }],
+      ['말풍', '메시지 보내기', openMessages],
+      ['✎', '낙서 쪽지', openDoodle],
+      ['똥', '같이 똥 싸기', () => sendEvent('poop')],
+      ['밥', '점심 같이 먹자', openLunch],
+      ['⏱', '같이 집중하기', openFocus],
+      ['✓', '할 일 · 버킷리스트', () => openTodos('todo')],
+      ['일정', '일정 · 기념일', openPlans],
+      ...(notes.length ? [['✉', `받은 쪽지 ${notes.length}장`, openNote, 'love']] : []),
+    ]],
+    ['나와 펫', [
+      ['★', '오늘의 운세', openFortune],
+      ['D', '처음 만난 날', () => $('ddayBtn').onclick()],
+      ['↕', `크기: ${SIZE_LABEL[prefs.size] || '보통'}`, () => setSize(SIZE_ORDER[(SIZE_ORDER.indexOf(prefs.size) + 1) % SIZE_ORDER.length])],
+      ['말', `말하기: ${['조용히', '가끔', '보통', '자주', '수다쟁이'][prefs.talk]}`, () => { prefs.talk = (prefs.talk + 1) % 5; savePrefs(); toast(`펫 말하기: ${['조용히', '가끔', '보통', '자주', '수다쟁이'][prefs.talk]}`); }],
+      ['정', prefs.still ? '돌아다니게 하기' : '가만히 있기', () => { prefs.still = !prefs.still; savePrefs(); if (prefs.still) { pets.me.state = 'idle'; if (pets.partner) pets.partner.state = 'idle'; } toast(prefs.still ? '펫이 가만히 있어요' : '펫이 다시 돌아다녀요'); }],
+      ['⚙', '내 펫 · 이름 바꾸기', () => $('menuBtn').onclick()],
+      ['집', '방 꾸미기 · 상점', openShop],
+      ...(roomItems.length ? [['✥', '가구 옮기기', () => setDecor(true)]] : []),
+    ]],
+    ['화면', [
+      ...(DESKTOP ? [['−', '잠시 숨기기 (10분)', () => window.desktop.hide && window.desktop.hide(10)]] : [['▣', IS_PC ? '바탕화면에 띄우기' : '떠 있는 창', () => $('pipBtn').onclick()]]),
+      ...(DESKTOP ? [] : [['↓', 'PC에 설치하기', openInstall]]),
+      ['?', '사용법', openHelp],
+      ['▶', '펫이 알려주는 둘러보기', startTour],
+      ['⇄', '모임방 (최대 8명)', openRooms],
+      ['⇆', '다른 기기에서 이어 쓰기', () => { $('menuBtn').onclick(); setTimeout(() => $('myRestore').scrollIntoView({ block: 'center' }), 50); }],
+    ]],
+    ['짝', [
+      ['✂', '짝 끊기', () => { $('menuBtn').onclick(); $('leaveBox').hidden = true; $('leaveConfirm').hidden = false; $('leaveConfirm').scrollIntoView({ block: 'center' }); }, 'danger'],
+      ...(DESKTOP ? [['×', 'UriPet 종료', () => window.desktop.quit()]] : []),
+    ]],
+  ];
+  for (const [title, items] of sections) {
+    const h = document.createElement('h4'); h.textContent = title; grid.append(h);
+    for (const [icon, label, fn, cls] of items) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'feat' + (cls ? ' ' + cls : '');
+      const i = document.createElement('i'); i.textContent = icon; const sp = document.createElement('span'); sp.textContent = label;
+      b.append(i, sp);
+      b.disabled = !paired && title !== '화면';
+      b.onclick = () => { $('featDlg').hidden = true; fn(); };
+      grid.append(b);
+    }
+  }
+  $('featDlg').hidden = false;
+}
+let clickTimer = 0, lastClickPet = null, lastClickAt = 0;
+
+stage.addEventListener('click', e => {
+  $('pop').hidden = true;
+  if (suppressClick) return;
+  {
+    const hit = petAt(e.clientX, e.clientY);
+    const tnow = performance.now();
+    if (hit && hit === lastClickPet && tnow - lastClickAt < 380) { clearTimeout(clickTimer); lastClickPet = null; openFeatures(); return; }
+    if (hit) { lastClickPet = hit; lastClickAt = tnow; clearTimeout(clickTimer); const ev = { clientX: e.clientX, clientY: e.clientY }; clickTimer = setTimeout(() => singleClick(ev), 300); return; }
+  }
+  singleClick(e);
+});
+function singleClick(e) {
+  const gy = groundY();
+  const pi = poops.findIndex(o => Math.abs(e.clientX - o.x) < 24 * SC && e.clientY > gy - 40 * SC && e.clientY < gy + 8);
+  if (pi >= 0 && !petAt(e.clientX, e.clientY)) { const o = poops.splice(pi, 1)[0]; spawnHearts(o.x, gy - 30 * SC, 3, false); if (pets.me) say(pets.me, '깨끗해졌다!', 1.8); return; }
+  const p = petAt(e.clientX, e.clientY); if (!p || scene || p.fly) return;
+  if (p.role === 'me') {
+    const head = e.clientY < gy - p.hop * SC - HEIGHT[p.kind] * SC * .55;
+    jump(p, head ? 220 : 360); p.react = now() + 1.2;
+    say(p, head ? ['쓰담쓰담 좋아', '헤헤', '더 해 줘!'][Math.floor(Math.random() * 3)] : ['간지러워!', '꺄르르', '거긴 안 돼!'][Math.floor(Math.random() * 3)], 1.8);
+    spawnHearts(p.x, gy - HEIGHT[p.kind] * SC, 3, false); return;
+  }
+  if (notes.length) { openNote(); return; }
+  popTarget = p; $('popKiss').hidden = mode === 'group'; $('popRide').hidden = !!riderOf(p) || p.anchor;
+  const pop = $('pop'); pop.hidden = false;
+  const r = pop.getBoundingClientRect();
+  pop.style.left = Math.max(16, Math.min(W - r.width - 16, p.x - r.width / 2)) + 'px';
+  pop.style.top = Math.max(70, groundY() - (HEIGHT[p.kind] + 40) * SC - r.height) + 'px';
+}
+let popTarget = null;
+$('popKiss').onclick = () => { $('pop').hidden = true; sendEvent('kiss'); };
+$('popPoke').onclick = () => { $('pop').hidden = true; if (mode === 'group') gSend('poke', popTarget && popTarget.owner); else sendEvent('poke'); };
+$('popRide').onclick = () => { $('pop').hidden = true; if (!rideOn(pets.me, popTarget)) toast('지금은 올라갈 수 없어요'); };
+
+/* =================== picture-in-picture =================== */
+const pipCanvas = document.createElement('canvas'); pipCanvas.width = 480; pipCanvas.height = 300;
+const pipCtx = pipCanvas.getContext('2d');
+const pipVideo = $('pipVideo');
+let pipOn = false;
+function drawPip() {
+  /* only the two pets, big, on a soft plain background — no floor, buttons or labels */
+  const t = now(), PW = pipCanvas.width, PH = pipCanvas.height;
+  g = pipCtx; g.setTransform(1, 0, 0, 1, 0, 0);
+  const bg = g.createLinearGradient(0, 0, 0, PH); bg.addColorStop(0, '#FFF3EA'); bg.addColorStop(1, '#FBE3D3');
+  g.fillStyle = bg; g.fillRect(0, 0, PW, PH);
+  const list = allPets();
+  if (!list.length) return;
+  const cx = list.reduce((a, p) => a + p.x, 0) / list.length;
+  const span = list.length > 1 ? (Math.max(...list.map(p => p.x)) - Math.min(...list.map(p => p.x))) / SC : 0;
+  const u = Math.min(1.85, (PW - 30) / (span + 110), (PH - 30) / 140);
+  const base = PH - 14;
+  for (const p of list.slice(1).concat(pets.me)) {
+    if (!p) continue;
+    const pose = poseOf(p, t), lift = (p.hop + (pose.bob || 0)) * u;
+    const x = PW / 2 + (p.x - cx) / SC * u;
+    g.globalAlpha = (p.role === 'partner' && !partnerOnline) || (p.role === 'friend' && !p.online) ? .5 : 1;
+    g.fillStyle = 'rgba(120,70,40,.14)'; g.beginPath(); g.ellipse(x, base, 38 * u * (1 - Math.min(.5, lift / 200)), 5 * u, 0, 0, TAU); g.fill();
+    g.save(); g.translate(x, base - Math.min(lift, base - 20)); g.scale(u * p.dir, u); g.rotate(pose.lean); g.scale(pose.sx, pose.sy);
+    DRAW[p.kind]({ t, ...pose }); g.restore();
+    g.globalAlpha = 1;
+    if (p.bubble && p.bubble.until > t) {
+      g.font = '17px "Gowun Dodum", sans-serif';
+      const w = Math.min(PW - 16, g.measureText(p.bubble.text).width + 22), h = 30, bx = Math.max(8, Math.min(PW - w - 8, x - w / 2)), by = 10;
+      g.fillStyle = 'rgba(255,255,255,.95)'; rr(bx, by, w, h, 15); g.fill();
+      g.fillStyle = '#2F2925'; g.textAlign = 'left'; g.fillText(p.bubble.text, bx + 11, by + 20);
+    }
+  }
+  for (const h of particles) { const age = t - h.born; if (age < 0 || age > h.life) continue; g.globalAlpha = Math.max(0, 1 - age / h.life); heart(PW / 2 + (h.x - cx) / SC * u, 60 - age * 20, (h.big ? 1.6 : .8) * u, h.big ? '#EE5B7A' : '#F48BA0'); }
+  g.globalAlpha = 1;
+}
+const IS_IPAD = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const IS_PC = !IS_IPAD && /Windows|Macintosh/.test(navigator.userAgent);
+function launchDesktop() {
+  /* PC browser: open the installed UriPet app (pets roam on the real desktop); if it isn't installed, offer the installer */
+  let left = false; const onBlur = () => { left = true; };
+  window.addEventListener('blur', onBlur, { once: true });
+  location.href = 'uripet://open';
+  setTimeout(() => {
+    window.removeEventListener('blur', onBlur);
+    if (left) { toast('PC 앱을 열었어요. 바탕화면 아래에서 펫이 걸어 다녀요', 5); return; }
+    if (/Windows/.test(navigator.userAgent)) { toast('PC 앱이 아직 없어서 설치 파일을 내려받아요. 받은 파일을 열면 바탕화면에 펫이 나타나요', 6); location.href = INSTALLER; }
+    else toast('바탕화면 펫은 지금 Windows에서만 돼요. Mac 앱은 준비 중이에요', 5);
+  }, 1500);
+}
+$('pipBtn').onclick = () => {
+  $('more').hidden = true;
+  if (IS_PC && !DESKTOP) { launchDesktop(); return; }
+  if (document.pictureInPictureElement) { document.exitPictureInPicture().catch(() => {}); return; }
+  if (pipVideo.webkitPresentationMode === 'picture-in-picture') { pipVideo.webkitSetPresentationMode('inline'); return; }
+  openPipDialog();
+};
+function pipSupported() {
+  return (typeof pipVideo.webkitSupportsPresentationMode === 'function' && pipVideo.webkitSupportsPresentationMode('picture-in-picture')) || !!document.pictureInPictureEnabled;
+}
+function openPipDialog() {
+  $('pipDlg').hidden = false;
+  if (!pipSupported()) { $('pipMsg').textContent = '이 브라우저에서는 떠 있는 창이 안 돼요. 아이패드 · 아이폰은 Safari로 열어 주세요 (카카오톡 안에서 열었다면 "다른 브라우저로 열기").'; $('pipMsg').className = 'msg err'; $('pipGo').disabled = true; return; }
+  const ready = () => {
+    pipVideo.srcObject = null; if (pipVideo.src !== loopURL) pipVideo.src = loopURL; pipVideo.loop = true; pipVideo.muted = true;
+    pipVideo.play().catch(() => {});
+    $('pipMsg').textContent = ''; $('pipGo').disabled = false;
+  };
+  if (loopURL && loopKey === petsKey()) { ready(); return; }
+  $('pipGo').disabled = true; $('pipMsg').className = 'msg'; $('pipMsg').textContent = '두 펫 영상을 준비하는 중이에요… (4초)';
+  prepareLoop(ok => { if (ok) ready(); else { $('pipMsg').textContent = '영상을 만들지 못했어요. Safari를 최신 버전으로 업데이트해 주세요.'; $('pipMsg').className = 'msg err'; } });
+}
+$('pipGo').onclick = () => {
+  /* must be called right inside the tap, with a visible, playing video — Safari's rule */
+  try {
+    if (typeof pipVideo.webkitSetPresentationMode === 'function' && pipVideo.webkitSupportsPresentationMode('picture-in-picture')) pipVideo.webkitSetPresentationMode('picture-in-picture');
+    else pipVideo.requestPictureInPicture().catch(e => { $('pipMsg').textContent = '띄우지 못했어요: ' + e.message; $('pipMsg').className = 'msg err'; });
+    setTimeout(() => { $('pipDlg').hidden = true; }, 600);
+  } catch (e) { $('pipMsg').textContent = '띄우지 못했어요: ' + (e.message || e); $('pipMsg').className = 'msg err'; }
+};
+pipVideo.addEventListener('leavepictureinpicture', () => { pipOn = false; });
+
+let loopURL = null, loopKey = '', loopBusy = false;
+const petsKey = () => (pets.me ? pets.me.kind : '') + '|' + (pets.partner ? pets.partner.kind : '');
+function prepareLoop(done) {
+  const fail = () => { if (done) done(false); };
+  if (DESKTOP || !pets.me || typeof MediaRecorder !== 'function') return fail();
+  if (loopBusy) { setTimeout(() => prepareLoop(done), 500); return; }
+  const c = document.createElement('canvas'); c.width = 480; c.height = 300;
+  if (typeof c.captureStream !== 'function') return fail();
+  const mime = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(m => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m));
+  if (!mime) return fail();
+  loopBusy = true;
+  const key = petsKey(), cx = c.getContext('2d'), LOOP = 4, stream = c.captureStream(30);
+  let rec; try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1200000 }); } catch (e) { loopBusy = false; return fail(); }
+  const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = () => { stream.getTracks().forEach(t => t.stop()); if (loopURL) URL.revokeObjectURL(loopURL); loopURL = URL.createObjectURL(new Blob(chunks, { type: mime })); loopKey = key; loopBusy = false; if (done) done(true); };
+  const t0 = performance.now();
+  const frame = () => {
+    const u = ((performance.now() - t0) / 1000) % LOOP;
+    g = cx; g.setTransform(1, 0, 0, 1, 0, 0);
+    const bg = g.createLinearGradient(0, 0, 0, 300); bg.addColorStop(0, '#FFF3EA'); bg.addColorStop(1, '#FBE3D3'); g.fillStyle = bg; g.fillRect(0, 0, 480, 300);
+    const duo = [[pets.me, 150, 1, 0], [pets.partner, 330, -1, .5]].filter(d => d[0]);
+    for (const [p, x, dir, off] of duo) {
+      const b = Math.sin((u / LOOP + off) * Math.PI * 4) * .03, hop = Math.max(0, Math.sin((u / LOOP + off) * Math.PI * 2)) * 6;
+      const blink = Math.abs(u - (off ? 3.1 : 1.3)) < .08;
+      g.fillStyle = 'rgba(120,70,40,.14)'; g.beginPath(); g.ellipse(x, 284, 60, 8, 0, 0, TAU); g.fill();
+      g.save(); g.translate(x, 284 - hop); g.scale(1.65 * dir * (1 + b), 1.65 * (1 - b));
+      DRAW[p.kind]({ t: u, eyes: blink ? 'blink' : (u > 2 && u < 2.8 ? 'happy' : 'open') }); g.restore();
+    }
+    if (duo.length > 1) for (let i = 0; i < 3; i++) { const a = ((u / LOOP) + i / 3) % 1; g.globalAlpha = Math.sin(a * Math.PI); heart(240 + Math.sin(a * 6 + i) * 18, 150 - a * 110, 1.1 + i * .2, '#F48BA0'); }
+    g.globalAlpha = 1;
+    if (rec.state === 'recording') requestAnimationFrame(frame);
+  };
+  rec.start(); frame(); setTimeout(() => { try { rec.stop(); } catch (e) { loopBusy = false; } }, LOOP * 1000);
+}
+
+/* =================== group rooms (up to 8) =================== */
+const CI = () => mode === 'couple' ? roomItems : coupleItemsSaved;
+function coupleSet(list) { if (mode === 'couple') roomItems = list; else coupleItemsSaved = list; }
+let mode = 'couple', group = null, groupChannel = null, coupleItemsSaved = [], partnerSaved = null;
+const roomKey = () => mode === 'group' && group ? 'g:' + group.id : 'c';
+const activeChannel = () => mode === 'group' ? groupChannel : roomChannel;
+const T = () => mode === 'group' ? { table: 'group_items', fk: 'group_id', id: group.id } : { table: 'room_items', fk: 'couple_id', id: couple.id };
+const nameOf = id => id === uid ? me.nickname : ((petByOwner(id) || {}).name || (group && (group.people.find(x => x.id === id) || {}).nickname) || '친구');
+
+async function openRooms() {
+  $('more').hidden = true; $('roomsMsg').textContent = '';
+  const box = $('roomList'); box.replaceChildren();
+  const add = (label, sub, on, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'room-btn' + (on ? ' on' : ''); const l = document.createElement('span'); l.textContent = label; const sm = document.createElement('small'); sm.textContent = sub; b.append(l, sm); b.onclick = fn; box.append(b); };
+  if (couple && couple.member_b) add(`우리 둘 · ${(partner || {}).nickname || '짝꿍'}`, '커플방', mode === 'couple', () => { $('roomsDlg').hidden = true; backToCouple(); });
+  const { data, error } = await sb.rpc('my_groups');
+  if (error) { $('roomsMsg').textContent = /function|schema/.test(error.message) ? '서버 업데이트가 필요해요 (007_groups.sql 실행)' : error.message; $('roomsMsg').className = 'msg err'; }
+  for (const gr of data || []) add(gr.name, `모임 · ${gr.members}/8명`, mode === 'group' && group && group.id === gr.id, () => { $('roomsDlg').hidden = true; enterGroup(gr.id); });
+  $('groupInfo').hidden = !(mode === 'group' && group);
+  if (mode === 'group' && group) {
+    $('groupCode').textContent = group.code; $('leaveGroupBox').hidden = false; $('leaveGroupConfirm').hidden = true;
+    const ml = $('memberList'); ml.replaceChildren();
+    for (const pp of group.people) { const d = document.createElement('div'); d.className = 'member'; const dot = document.createElement('span'); dot.className = 'dot' + (pp.id === uid || (petByOwner(pp.id) || {}).online ? ' on' : ''); const n = document.createElement('span'); n.textContent = pp.id === uid ? `${pp.nickname} (나)` : pp.nickname; d.append(dot, n); ml.append(d); }
+  }
+  $('roomsDlg').hidden = false;
+}
+$('who').onclick = openRooms;
+$('copyGroupCode').onclick = async () => { try { await navigator.clipboard.writeText(group.code); toast(`모임 코드 ${group.code}를 복사했어요`); } catch (e) { toast('코드를 길게 눌러 복사해 주세요'); } };
+$('groupJoinCode').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
+$('createGroupForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const { data, error } = await sb.rpc('create_group', { group_name: $('groupName').value.trim() });
+  if (error) { $('roomsMsg').textContent = /too many/.test(error.message) ? '모임은 5개까지 들어갈 수 있어요' : /function|schema/.test(error.message) ? '서버 업데이트가 필요해요 (007_groups.sql 실행)' : '만들지 못했어요: ' + error.message; $('roomsMsg').className = 'msg err'; return; }
+  $('groupName').value = ''; $('roomsDlg').hidden = true; await enterGroup(data.id);
+  toast(`모임을 만들었어요! 코드 ${data.code}를 친구들에게 알려 주세요`, 6);
+});
+$('joinGroupForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const { data, error } = await sb.rpc('join_group', { invite: $('groupJoinCode').value.trim() });
+  if (error) { $('roomsMsg').textContent = /invalid/.test(error.message) ? '코드가 맞지 않아요' : /full/.test(error.message) ? '이 모임은 이미 8명이 꽉 찼어요' : /too many/.test(error.message) ? '모임은 5개까지 들어갈 수 있어요' : '들어가지 못했어요: ' + error.message; $('roomsMsg').className = 'msg err'; return; }
+  $('groupJoinCode').value = ''; $('roomsDlg').hidden = true; await enterGroup(data);
+});
+$('leaveGroupBtn').onclick = () => { $('leaveGroupBox').hidden = true; $('leaveGroupConfirm').hidden = false; };
+$('leaveGroupNo').onclick = () => { $('leaveGroupBox').hidden = false; $('leaveGroupConfirm').hidden = true; };
+$('leaveGroupYes').onclick = async () => { const gid = group.id; await sb.rpc('leave_group', { gid }); $('roomsDlg').hidden = true; backToCouple(); toast('모임에서 나왔어요'); };
+
+async function enterGroup(gid) {
+  const [{ data: people, error }, { data: gs }] = await Promise.all([sb.rpc('group_people', { gid }), sb.rpc('my_groups')]);
+  const g = (gs || []).find(x => x.id === gid);
+  if (error || !g) { toast('모임을 열지 못했어요' + (error ? ': ' + error.message : '')); return; }
+  if (mode === 'couple') { partnerSaved = pets.partner; coupleItemsSaved = roomItems; }
+  if (groupChannel) { sb.removeChannel(groupChannel); groupChannel = null; }
+  scene = null; mode = 'group'; group = { id: gid, name: g.name, code: g.code, people };
+  if (!pets.me) pets.me = makePet('me', me.pet, W * .4, uid);
+  for (const q of allPets()) { q.anchor = null; q.leap = null; }
+  pets.partner = null; syncFriends(); roomItems = [];
+  const { data: items } = await sb.from('group_items').select('id, item, x, placed_by').eq('group_id', gid).order('created_at');
+  roomItems = items || [];
+  show(null); $('kissBtn').hidden = true; $('ddayBtn').hidden = true; renderWho();
+  if (!coinTimer) startCoins();
+  loadFocus(); loadPlans().then(checkPlanAlerts);
+  try { localStorage.setItem('uripet-room', gid); } catch (e) {}
+  groupChannel = sb.channel('group-' + gid, { config: { presence: { key: uid }, broadcast: { self: false } } });
+  groupChannel
+    .on('broadcast', { event: 'move' }, ({ payload }) => applyRemoteMove(payload))
+    .on('broadcast', { event: 'toss' }, ({ payload }) => applyRemoteToss(payload))
+    .on('broadcast', { event: 'ride' }, ({ payload }) => applyRemoteRide(payload))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'todos', filter: `group_id=eq.${gid}` }, p => onTodoChange(p, 'g:' + gid))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'plans', filter: `group_id=eq.${gid}` }, () => { loadPlans().then(checkPlanAlerts); if (!$('planDlg').hidden) renderPlans(); })
+    .on('presence', { event: 'sync' }, () => {
+      const st = groupChannel.presenceState();
+      for (const f of pets.others || []) { const was = f.online; f.online = !!st[f.owner]; const info = st[f.owner] && st[f.owner][0]; if (info) { if (info.pet) f.kind = info.pet; if (info.nickname) f.name = info.nickname; } if (!was && f.online) { say(f, '왔어!', 2); jump(f, 280); } }
+      renderWho();
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_events', filter: `group_id=eq.${gid}` }, ({ new: ev }) => { if (ev.sender !== uid) gReceive(ev); else if (ev.kind.startsWith('lunch') && !$('voteDlg').hidden) renderVote(); })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_items', filter: `group_id=eq.${gid}` }, ({ new: it }) => { if (!roomItems.some(i => i.id === it.id)) roomItems.push(it); })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_items', filter: `group_id=eq.${gid}` }, ({ new: it }) => { const i = roomItems.find(x => x.id === it.id); if (i && !(decorDrag && decorDrag.it === i)) i.x = it.x; })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'group_items' }, ({ old }) => { roomItems = roomItems.filter(i => i.id !== old.id); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${gid}` }, async () => { const { data } = await sb.rpc('group_people', { gid }); if (data && group && group.id === gid) { const before = group.people.length; group.people = data; syncFriends(); renderWho(); if (data.length > before) toast(`${data[data.length - 1].nickname} 님이 모임에 들어왔어요`); } })
+    .subscribe(async st => { if (st === 'SUBSCRIBED') await groupChannel.track({ nickname: me.nickname, pet: me.pet }); });
+}
+function syncFriends() {
+  const old = pets.others || [];
+  pets.others = group.people.filter(x => x.id !== uid).map((x, i, arr) => {
+    const f = old.find(o => o.owner === x.id) || makePet('friend', x.pet, W * (.12 + .76 * (i + 1) / (arr.length + 1)), x.id);
+    f.name = x.nickname; f.kind = x.pet; return f;
+  });
+}
+function backToCouple() {
+  if (groupChannel) { sb.removeChannel(groupChannel); groupChannel = null; }
+  for (const q of allPets()) { q.anchor = null; q.leap = null; }
+  pets.others = []; mode = 'couple'; group = null; scene = null;
+  try { localStorage.setItem('uripet-room', 'c'); } catch (e) {}
+  $('kissBtn').hidden = false; $('ddayBtn').hidden = false;
+  if (!(couple && couple.member_b)) { pets.me = null; roomItems = []; loadCouple(); return; }
+  pets.partner = partnerSaved; roomItems = coupleItemsSaved || []; renderWho();
+  loadFocus(); loadPlans();
+}
+function pickFriend(title, cb) {
+  const fr = pets.others || [];
+  if (!fr.length) { toast('아직 모임에 친구가 없어요. 모임 코드를 알려 주세요'); return; }
+  $('pickTitle').textContent = title; const box = $('pickGrid'); box.replaceChildren();
+  for (const f of fr) { const b = document.createElement('button'); b.type = 'button'; b.className = 'feat'; const i = document.createElement('i'); i.textContent = f.online ? '●' : '○'; const sp = document.createElement('span'); sp.textContent = f.name; b.append(i, sp); b.onclick = () => { $('pickDlg').hidden = true; cb(f); }; box.append(b); }
+  $('pickDlg').hidden = false;
+}
+async function gSend(kind, target = null, payload = null) {
+  if (!group) return false;
+  if (kind === 'poke') { jump(pets.me, 300); say(pets.me, '콕!', 1.6); const t = petByOwner(target); if (t) { jump(t, 360); t.react = now() + 1.5; } }
+  else if (kind === 'msg') say(pets.me, shortText(payload.text), 5);
+  else if (kind === 'doodle') { say(pets.me, '쪽지 보냈어!', 2.5); jump(pets.me, 280); }
+  else if (kind === 'poop') poopAll(pets.me, '다 같이 싸자!');
+  const row = { group_id: group.id, sender: uid, kind }; if (target) row.target = target; if (payload) row.payload = payload;
+  const { error } = await sb.from('group_events').insert(row);
+  if (error) { toast('보내지 못했어요: ' + error.message, 5); return false; }
+  return true;
+}
+function poopAll(first, line) {
+  doPoop(first, 0, line);
+  allPets().filter(q => q !== first).forEach((q, i) => doPoop(q, 900 + i * 450, i % 2 ? '나도!' : '같이 싸!'));
+}
+function gReceive(ev) {
+  const sp = petByOwner(ev.sender), who = nameOf(ev.sender), pl = ev.payload || {};
+  if (ev.kind === 'poke') {
+    if (ev.target === uid) { if (sp) { jump(sp, 360); say(sp, '콕!', 2); } jump(pets.me, 300); say(pets.me, `${josa(who, '이', '가')} 콕 찔렀어!`, 3); toast(`${josa(who, '이', '가')} 나를 콕 찔렀어요`, 3.5); }
+    else { const t = petByOwner(ev.target); if (sp) say(sp, `${t ? t.name : ''} 콕!`, 2); if (t) { jump(t, 320); t.react = now() + 1.2; } }
+  } else if (ev.kind === 'msg' && pl.text) { if (sp) { say(sp, shortText(pl.text), 8); jump(sp, 260); } toast(`${who}: ${shortText(pl.text, 40)}`, 5); appendMsg(pl.text, false, ev.created_at, who); }
+  else if (ev.kind === 'doodle' && pl.img) { notes.push({ img: pl.img, at: ev.created_at, from: who }); if (sp) say(sp, '쪽지 왔어! 나를 눌러 봐', 6); toast(`${josa(who, '이', '가')} 낙서 쪽지를 보냈어요`, 4); }
+  else if (ev.kind === 'poop') { poopAll(sp || pets.me, null); toast(`${josa(who, '이', '가')} 다 같이 똥 싸재요`, 3.5); }
+  else if (ev.kind === 'focus') { onFocusEvent(pl, ev.sender, josa(who, '이', '가')); }
+  else if (ev.kind === 'lunch_open') { if (sp) say(sp, '점심 투표하자!', 4); toast(`${josa(who, '이', '가')} 점심 투표를 열었어요`, 4); if (!$('voteDlg').hidden) renderVote(); }
+  else if (ev.kind === 'lunch_vote') { if (!$('voteDlg').hidden) renderVote(); }
+}
+async function openGroupChat() {
+  $('msgTitle').textContent = `${group.name} 단체 메시지`;
+  const list = $('msgList'); list.replaceChildren(); $('msgDlg').hidden = false;
+  const { data } = await sb.from('group_events').select('sender, payload, created_at').eq('group_id', group.id).eq('kind', 'msg').order('created_at', { ascending: false }).limit(60);
+  list.replaceChildren();
+  if (!data || !data.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = '모임에 첫 한마디를 남겨 보세요!'; list.append(p); }
+  else for (const m of data.reverse()) if (m.payload && m.payload.text) list.append(msgEl(m.payload.text, m.sender === uid, m.created_at, nameOf(m.sender)));
+  list.scrollTop = list.scrollHeight; setTimeout(() => $('msgText').focus(), 50);
+}
+/* lunch vote */
+async function renderVote() {
+  const since = new Date(Date.now() - 6 * 3600e3).toISOString();
+  const { data } = await sb.from('group_events').select('id, sender, kind, payload, created_at').eq('group_id', group.id).in('kind', ['lunch_open', 'lunch_vote']).gt('created_at', since).order('created_at', { ascending: false }).limit(300);
+  const open = (data || []).find(e => e.kind === 'lunch_open');
+  const list = $('voteList'); list.replaceChildren();
+  if (!open) { $('voteInfo').textContent = '아직 열린 투표가 없어요. 새 투표를 열면 메뉴 3개가 나와요.'; return; }
+  const votes = new Map();
+  for (const e of (data || []).slice().reverse()) if (e.kind === 'lunch_vote' && e.payload && e.payload.vote === open.id) votes.set(e.sender, e.payload.choice);
+  const counts = open.payload.options.map((_, i) => [...votes.values()].filter(v => v === i).length), total = votes.size;
+  $('voteInfo').textContent = `${nameOf(open.sender)} 님이 연 투표 · ${total}/${group.people.length}명 참여`;
+  open.payload.options.forEach((opt, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-opt' + (votes.get(uid) === i ? ' mine' : '');
+    const bar = document.createElement('i'); bar.className = 'bar'; bar.style.width = (total ? counts[i] / total * 100 : 0) + '%';
+    const n = document.createElement('span'); n.textContent = opt; const c = document.createElement('b'); c.textContent = `${counts[i]}표`;
+    const who = document.createElement('small'); who.textContent = [...votes.entries()].filter(([, v]) => v === i).map(([k]) => nameOf(k)).join(', ');
+    b.append(bar, n, c, who);
+    b.onclick = async () => { await gSend('lunch_vote', null, { vote: open.id, choice: i }); say(pets.me, `${opt} 찬성!`, 2); renderVote(); };
+    list.append(b);
+  });
+}
+function openVote() { $('voteDlg').hidden = false; renderVote(); }
+$('voteNew').onclick = async () => {
+  const all = Object.values(LUNCH).flat(), opts = [];
+  while (opts.length < 3) { const m = all[Math.floor(Math.random() * all.length)]; if (!opts.includes(m)) opts.push(m); }
+  if (await gSend('lunch_open', null, { options: opts })) { say(pets.me, '점심 투표하자!', 2.5); renderVote(); }
+};
+function openGroupFeatures() {
+  const grid = $('featGrid'); grid.replaceChildren();
+  const sections = [
+    [`${group.name} 친구들에게`, [
+      ['콕', '콕 찌르기', () => pickFriend('누구를 콕 찌를까요?', f => gSend('poke', f.owner))],
+      ['말풍', '단체 메시지', openGroupChat],
+      ['✎', '낙서 쪽지', openDoodle],
+      ['똥', '다 같이 똥 싸기', () => gSend('poop')],
+      ['밥', '점심 투표', openVote],
+      ['⏱', '같이 집중하기', openFocus],
+      ['✓', '모임 할 일', () => openTodos('todo')],
+      ['일정', '모임 일정', openPlans],
+      ['↑', '친구 머리 위로 올라가기', () => pickFriend('누구 머리 위로 갈까요?', f => { if (!rideOn(pets.me, f)) toast('지금은 올라갈 수 없어요'); })],
+      ...(notes.length ? [['✉', `받은 쪽지 ${notes.length}장`, openNote, 'love']] : []),
+    ]],
+    ['나와 펫', [
+      ['★', '오늘의 운세', openFortune],
+      ['↕', `크기: ${SIZE_LABEL[prefs.size] || '보통'}`, () => setSize(SIZE_ORDER[(SIZE_ORDER.indexOf(prefs.size) + 1) % SIZE_ORDER.length])],
+      ['집', '모임방 꾸미기', openShop],
+      ['⚙', '내 펫 · 이름 바꾸기', () => $('menuBtn').onclick()],
+    ]],
+    ['방', [
+      ['⇄', '방 고르기 · 모임 코드', openRooms],
+      ...(couple && couple.member_b ? [['♥', '우리 둘 방으로', backToCouple, 'love']] : []),
+      ['?', '사용법', openHelp],
+    ]],
+  ];
+  for (const [title, items] of sections) {
+    const h = document.createElement('h4'); h.textContent = title; grid.append(h);
+    for (const [icon, label, fn, cls] of items) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'feat' + (cls ? ' ' + cls : '');
+      const i = document.createElement('i'); i.textContent = icon; const sp = document.createElement('span'); sp.textContent = label; b.append(i, sp);
+      b.onclick = () => { $('featDlg').hidden = true; fn(); }; grid.append(b);
+    }
+  }
+  $('featDlg').hidden = false;
+}
+
+/* =================== focus together =================== */
+let focus = null, focusTick = 0;
+const scopeRoom = () => mode === 'group' ? { fk: 'group_id', id: group.id, table: 'group_events' } : { fk: 'couple_id', id: couple && couple.id, table: 'events' };
+function isFocusing(p) { return !!(focus && p && focus.members.has(p.owner) && Date.now() < focus.ends); }
+async function sendFocus(payload) { return mode === 'group' ? gSend('focus', null, payload) : sendEvent('focus', payload); }
+function onFocusEvent(pl, sender, who) {
+  if (!pl || !pl.sid) return;
+  if (pl.action === 'start') { focus = { sid: pl.sid, ends: Date.parse(pl.ends), minutes: pl.minutes, members: new Set([sender]), by: sender }; toast(`${who} ${pl.minutes}분 집중을 시작했어요. 같이 할래요?`, 5); renderFocus(); }
+  else if (pl.action === 'join' && focus && focus.sid === pl.sid) { focus.members.add(sender); const sp = petByOwner(sender); if (sp) say(sp, '나도 집중!', 2); renderFocus(); }
+  else if (pl.action === 'stop' && focus && focus.sid === pl.sid) { focus.members.delete(sender); const sp = petByOwner(sender); if (sp) say(sp, '먼저 갈게…', 2); if (!focus.members.size) focus = null; renderFocus(); }
+}
+async function loadFocus() {
+  focus = null; const sc = scopeRoom(); if (!sc.id) return renderFocus();
+  const { data } = await sb.from(sc.table).select('sender, payload, created_at').eq(sc.fk, sc.id).eq('kind', 'focus').gt('created_at', new Date(Date.now() - 2 * 3600e3).toISOString()).order('created_at', { ascending: true }).limit(200);
+  for (const e of data || []) onFocusQuiet(e.payload, e.sender);
+  if (focus && Date.now() >= focus.ends) focus = null;
+  renderFocus();
+}
+function onFocusQuiet(pl, sender) {
+  if (!pl) return;
+  if (pl.action === 'start') focus = { sid: pl.sid, ends: Date.parse(pl.ends), minutes: pl.minutes, members: new Set([sender]), by: sender };
+  else if (focus && focus.sid === pl.sid) { if (pl.action === 'join') focus.members.add(sender); else if (pl.action === 'stop') focus.members.delete(sender); }
+}
+function fmtLeft(ms) { const s = Math.max(0, Math.round(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+function renderFocus() {
+  clearInterval(focusTick);
+  const on = focus && Date.now() < focus.ends;
+  $('focusPill').hidden = !on;
+  const mine = on && focus.members.has(uid);
+  $('focusClock').hidden = !on; $('focusStartRow').hidden = !!on; $('focusJoinRow').hidden = !on || mine; $('focusStopRow').hidden = !mine;
+  if (!on) { $('focusInfo').textContent = '타이머를 시작하면 펫들이 책상에 앉아요. 같이 끝까지 하면 5분마다 하트 1개 (한 번에 최대 12개, 하루 30개).'; return; }
+  $('focusInfo').textContent = `${[...focus.members].map(nameOfAny).join(', ')} 집중 중 · ${focus.minutes}분`;
+  const tick = async () => {
+    const left = focus ? focus.ends - Date.now() : 0;
+    $('focusPill').textContent = `집중 ${fmtLeft(left)} · ${focus ? focus.members.size : 0}명`; $('focusClock').textContent = fmtLeft(left);
+    if (focus && left <= 0) { const f = focus; focus = null; clearInterval(focusTick); renderFocus(); if (f.members.has(uid)) finishFocus(f); }
+  };
+  tick(); focusTick = setInterval(tick, 1000);
+}
+const nameOfAny = id => id === uid ? '나' : (partner && id === partner.id ? partner.nickname : nameOf(id));
+async function finishFocus(f) {
+  const together = f.members.size > 1;
+  for (const id of f.members) { const q = petByOwner(id); if (q) { jump(q, 320); q.react = now() + 2; say(q, together ? '같이 해냈다!' : '끝!', 3); } }
+  spawnHearts(pets.me.x, groundY() - 140 * SC, 6);
+  const { data, error } = await sb.rpc('focus_reward', { minutes: f.minutes });
+  if (!error && data) { setCoins(data.coins); toast(data.got ? `${f.minutes}분 집중 완료! 하트 +${data.got}` : `${f.minutes}분 집중 완료! (오늘 집중 하트는 다 받았어요)`, 5); }
+  else toast(`${f.minutes}분 집중 완료!`, 4);
+}
+function openFocus() { renderFocus(); $('focusDlg').hidden = false; }
+$('focusStartRow').addEventListener('click', async e => {
+  const b = e.target.closest('[data-min]'); if (!b) return;
+  const minutes = Number(b.dataset.min), sid = Math.random().toString(36).slice(2, 10), ends = new Date(Date.now() + minutes * 60e3).toISOString();
+  focus = { sid, ends: Date.parse(ends), minutes, members: new Set([uid]), by: uid }; renderFocus();
+  say(pets.me, '집중 시작!', 2);
+  if (!(await sendFocus({ action: 'start', sid, ends, minutes }))) { focus = null; renderFocus(); }
+});
+$('focusJoin').onclick = async () => { if (!focus) return; focus.members.add(uid); renderFocus(); say(pets.me, '나도 집중!', 2); await sendFocus({ action: 'join', sid: focus.sid }); };
+$('focusStop').onclick = async () => { if (!focus) return; const sid = focus.sid; focus.members.delete(uid); if (!focus.members.size) focus = null; renderFocus(); await sendFocus({ action: 'stop', sid }); };
+$('focusPill').onclick = openFocus;
+function drawDesk(p, gy, t) {
+  g = ctx; ctx.save(); ctx.translate(p.x + p.dir * 34 * SC, gy); ctx.scale(SC, SC);
+  ctx.fillStyle = '#C79A6B'; rr(-34, -52, 68, 8, 3); ctx.fill(); ctx.fillRect(-28, -46, 5, 46); ctx.fillRect(23, -46, 5, 46);
+  ctx.fillStyle = '#5B6370'; rr(-20, -78, 40, 26, 3); ctx.fill();
+  const glow = .55 + Math.sin(t * 3) * .1; ctx.fillStyle = `rgba(190,225,255,${glow})`; rr(-16, -74, 32, 18, 2); ctx.fill();
+  ctx.fillStyle = '#6E7480'; rr(-24, -54, 48, 4, 2); ctx.fill();
+  ctx.restore();
+}
+
+/* =================== to-do & bucket list =================== */
+let todoList = 'todo', todos = [];
+const scopeRow = () => mode === 'group' ? { group_id: group.id } : { couple_id: couple.id };
+const scopeEq = q => mode === 'group' ? q.eq('group_id', group.id) : q.eq('couple_id', couple.id);
+async function openTodos(list) {
+  todoList = list; $('tabTodo').setAttribute('aria-pressed', list === 'todo'); $('tabBucket').setAttribute('aria-pressed', list === 'bucket');
+  $('todoTitle').textContent = mode === 'group' ? `${group.name} 할 일` : '같이 쓰는 할 일';
+  $('todoText').placeholder = list === 'todo' ? '예: 장보기, 과제 제출' : '예: 바다 보러 가기, 커플 사진 찍기';
+  $('todoDlg').hidden = false; await loadTodos(); renderTodos();
+}
+async function loadTodos() {
+  const { data, error } = await scopeEq(sb.from('todos').select('*')).order('created_at');
+  if (error) { todos = []; $('todoList').textContent = /todos|schema/.test(error.message) ? '서버 업데이트가 필요해요 (008_together.sql 실행)' : error.message; return; }
+  todos = data || [];
+}
+function renderTodos() {
+  const box = $('todoList'); box.replaceChildren();
+  const list = todos.filter(t => t.list === todoList).sort((a, b) => (a.done - b.done) || (a.created_at < b.created_at ? -1 : 1));
+  if (!list.length) { const p = document.createElement('p'); p.className = 'note-sm'; p.textContent = todoList === 'todo' ? '같이 할 일을 적어 보세요.' : '둘이 해 보고 싶은 걸 모아 보세요.'; box.append(p); return; }
+  for (const t of list) {
+    const row = document.createElement('label'); row.className = 'todo' + (t.done ? ' done' : '');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = t.done;
+    cb.onchange = async () => { const done = cb.checked; t.done = done; renderTodos(); const { error } = await sb.from('todos').update({ done, done_by: done ? uid : null, done_at: done ? new Date().toISOString() : null }).eq('id', t.id); if (error) toast('저장하지 못했어요: ' + error.message); else if (done) celebrateTodo(t, uid); };
+    const tx = document.createElement('span'); tx.className = 't'; const main = document.createElement('span'); main.textContent = t.text; const sm = document.createElement('small'); sm.textContent = t.done ? `${nameOfAny(t.done_by)} 완료` : `${nameOfAny(t.created_by)} 추가`; tx.append(main, sm);
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '×'; del.setAttribute('aria-label', '지우기');
+    del.onclick = async e => { e.preventDefault(); todos = todos.filter(x => x !== t); renderTodos(); await sb.from('todos').delete().eq('id', t.id); };
+    row.append(cb, tx, del); box.append(row);
+  }
+}
+function celebrateTodo(t, by) {
+  for (const q of allPets()) { jump(q, 300); q.react = now() + 1.6; }
+  const who = petByOwner(by); if (who) say(who, '해냈다!', 2.5);
+  const other = allPets().find(q => q.owner !== by); if (other) say(other, '축하해!', 2.5);
+  spawnHearts((pets.me.x + (other ? other.x : pets.me.x)) / 2, groundY() - 140 * SC, 6);
+  if (by !== uid) toast(`${josa(nameOfAny(by), '이', '가')} '${shortText(t.text, 20)}' 완료!`, 4);
+}
+function onTodoChange(p, room) {
+  if (room !== roomKey()) return;
+  const n = p.new, o = p.old;
+  if (p.eventType === 'INSERT') { if (!todos.some(t => t.id === n.id)) todos.push(n); if (n.created_by !== uid) toast(`${josa(nameOfAny(n.created_by), '이', '가')} '${shortText(n.text, 20)}'을 추가했어요`, 3); }
+  else if (p.eventType === 'UPDATE') { const t = todos.find(x => x.id === n.id); const was = t ? t.done : false; if (t) Object.assign(t, n); else todos.push(n); if (n.done && !was && n.done_by !== uid) celebrateTodo(n, n.done_by); }
+  else if (p.eventType === 'DELETE') todos = todos.filter(t => t.id !== o.id);
+  if (!$('todoDlg').hidden) renderTodos();
+}
+$('tabTodo').onclick = () => openTodos('todo');
+$('tabBucket').onclick = () => openTodos('bucket');
+$('todoForm').addEventListener('submit', async e => {
+  e.preventDefault(); const text = $('todoText').value.trim(); if (!text) return;
+  const { data, error } = await sb.from('todos').insert({ ...scopeRow(), list: todoList, text, created_by: uid }).select().single();
+  if (error) { toast(/todos|schema/.test(error.message) ? '서버 업데이트가 필요해요 (008_together.sql 실행)' : '추가하지 못했어요: ' + error.message, 5); return; }
+  $('todoText').value = ''; if (!todos.some(t => t.id === data.id)) todos.push(data); renderTodos(); say(pets.me, todoList === 'bucket' ? '꼭 같이 하자!' : '적어 뒀어!', 2);
+});
+
+/* =================== plans & anniversaries =================== */
+let plans = [];
+async function loadPlans() {
+  if (!(mode === 'group' ? group : couple && couple.member_b)) { plans = []; return; }
+  const { data, error } = await scopeEq(sb.from('plans').select('*')).order('day');
+  plans = error ? [] : (data || []);
+}
+function nextDate(pl) {
+  const [y, m, d] = pl.day.split('-').map(Number), t = new Date(), today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  let dt = new Date(y, m - 1, d);
+  if (pl.yearly || pl.kind === 'birthday' || pl.kind === 'anniv') { dt = new Date(today.getFullYear(), m - 1, d); if (dt < today) dt = new Date(today.getFullYear() + 1, m - 1, d); }
+  return { dt, days: Math.round((dt - today) / 864e5) };
+}
+function renderPlans() {
+  const box = $('planList'); box.replaceChildren();
+  const list = plans.map(pl => ({ pl, ...nextDate(pl) })).filter(x => x.days >= 0).sort((a, b) => a.days - b.days);
+  if (!list.length) { const p = document.createElement('p'); p.className = 'note-sm'; p.textContent = '아직 적어 둔 일정이 없어요.'; box.append(p); return; }
+  const KIND = { date: '데이트', birthday: '생일', anniv: '기념일', etc: '일정' };
+  for (const { pl, dt, days } of list) {
+    const row = document.createElement('div'); row.className = 'todo';
+    const when = document.createElement('span'); when.className = 'when'; when.textContent = days === 0 ? '오늘' : days === 1 ? '내일' : `D-${days}`;
+    const tx = document.createElement('span'); tx.className = 't'; const main = document.createElement('span'); main.textContent = pl.title; const sm = document.createElement('small'); sm.textContent = `${KIND[pl.kind]} · ${dt.getMonth() + 1}월 ${dt.getDate()}일`; tx.append(main, sm);
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'del'; del.textContent = '×'; del.setAttribute('aria-label', '지우기');
+    del.onclick = async () => { plans = plans.filter(x => x !== pl); renderPlans(); await sb.from('plans').delete().eq('id', pl.id); };
+    row.append(when, tx, del); box.append(row);
+  }
+}
+async function openPlans() { $('planDlg').hidden = false; await loadPlans(); renderPlans(); }
+$('planForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const kind = $('planKind').value, row = { ...scopeRow(), title: $('planTitle').value.trim(), day: $('planDay').value, kind, yearly: kind === 'birthday' || kind === 'anniv', created_by: uid };
+  if (!row.title || !row.day) return;
+  const { data, error } = await sb.from('plans').insert(row).select().single();
+  if (error) { toast(/plans|schema/.test(error.message) ? '서버 업데이트가 필요해요 (008_together.sql 실행)' : '추가하지 못했어요: ' + error.message, 5); return; }
+  $('planTitle').value = ''; $('planDay').value = ''; plans.push(data); renderPlans(); say(pets.me, '기억해 둘게!', 2);
+});
+function checkPlanAlerts() {
+  const key = 'uripet-plan-alert-' + roomKey() + '-' + todayKey();
+  let shown = false; try { shown = !!localStorage.getItem(key); } catch (e) {}
+  if (shown || !pets.me) return;
+  const soon = plans.map(pl => ({ pl, ...nextDate(pl) })).filter(x => x.days === 0 || x.days === 1).sort((a, b) => a.days - b.days);
+  if (!soon.length) return;
+  try { localStorage.setItem(key, '1'); } catch (e) {}
+  const { pl, days } = soon[0];
+  setTimeout(() => {
+    if (days === 0) { if (pets.partner) startParty(`오늘 ${pl.title}!`); else { say(pets.me, `오늘 ${pl.title}!`, 5); jump(pets.me, 320); } toast(`오늘은 ${pl.title}`, 5); }
+    else { say(pets.me, `내일 ${pl.title}!`, 6); jump(pets.me, 300); toast(`내일은 ${pl.title}`, 5); }
+  }, 2500);
+}
+
+/* =================== guided tour by your pet =================== */
+let tourSteps = [], tourIdx = 0;
+function startTour() {
+  if (!pets.me) return;
+  $('featDlg').hidden = true; $('helpDlg').hidden = true;
+  const nm = PET_NAME[me.pet];
+  tourSteps = [
+    { pet: true, text: `안녕! 나는 ${nm}. 여기서 ${partner && mode === 'couple' ? partner.nickname + '의 펫이랑 ' : ''}같이 살 거야. 나를 집어서 옮기거나 휙 던질 수도 있어!` },
+    { sel: '#kissBtn', text: '뽀뽀를 보내면 짝꿍 화면에서도 두 펫이 쪽!' },
+    { sel: '#msgBtn', text: '메시지를 쓰면 내가 말풍선으로 전해 줄게.' },
+    { sel: '#doodleBtn', text: '그림을 그려 보내면 쪽지를 들고 갈게.' },
+    { sel: '#moreBtn', text: '더보기엔 같이 집중하기, 할 일, 일정, 방 꾸미기가 있어.' },
+    { sel: '#ddayBtn', text: '처음 만난 날을 정하면 D-day를 같이 세.' },
+    { sel: '#who', text: '여기를 누르면 친구들이랑 쓰는 모임방(최대 8명)으로 갈 수 있어.' },
+    { sel: '#coinPill', text: '출석하면 하트 10개, 켜 두면 더 줘! 상점에서 가구를 사.' },
+    { sel: '#menuBtn', text: '설정이야. 다른 기기로 옮길 때 쓰는 이어 쓰기 코드도 여기 있어.' },
+    { pet: true, text: '마지막! 나를 두 번 누르면 모든 기능이 한 번에 나와. 잘 부탁해!' },
+  ].filter(st => st.pet || (document.querySelector(st.sel) && document.querySelector(st.sel).offsetParent !== null && !document.querySelector(st.sel).hidden));
+  tourIdx = 0; $('tour').hidden = false; showTourStep();
+}
+function showTourStep() {
+  const st = tourSteps[tourIdx]; if (!st) return endTour();
+  let r;
+  if (st.pet) { const h = (HEIGHT[pets.me.kind] + 20) * SC; r = { left: pets.me.x - 60 * SC, top: groundY() - h, width: 120 * SC, height: h + 10 }; }
+  else { const b = document.querySelector(st.sel).getBoundingClientRect(); r = { left: b.left - 6, top: b.top - 6, width: b.width + 12, height: b.height + 12 }; pets.me.dir = (b.left + b.width / 2) > pets.me.x ? 1 : -1; }
+  const sp = $('tourSpot'); Object.assign(sp.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  $('tourText').textContent = st.text; $('tourNext').textContent = tourIdx === tourSteps.length - 1 ? '시작하기' : `다음 (${tourIdx + 1}/${tourSteps.length})`;
+  const card = $('tourCard'), below = r.top + r.height / 2 < innerHeight / 2;
+  card.style.top = (below ? Math.min(innerHeight - 170, r.top + r.height + 14) : Math.max(16, r.top - 150)) + 'px';
+  say(pets.me, shortText(st.text, 18), 4); jump(pets.me, 220);
+}
+function endTour() { $('tour').hidden = true; try { localStorage.setItem('uripet-help-seen', '1'); } catch (e) {} say(pets.me, '이제 놀자!', 2); }
+$('tourNext').onclick = () => { tourIdx++; if (tourIdx >= tourSteps.length) endTour(); else showTourStep(); };
+$('tourSkip').onclick = endTour;
+
+/* =================== toast / misc =================== */
+let toastTimer = 0;
+function toast(msg, secs = 3) { const el = $('toast'); el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, secs * 1000); }
+function show(id) { for (const s of ['loading', 'setup', 'pair', 'fatal']) $(s).hidden = s !== id; const inRoom = id === null; $('topbar').hidden = !inRoom; $('actions').hidden = !inRoom; }
+function fatal(text, helpHtml = '') { $('fatalText').textContent = text; $('fatalHelp').innerHTML = helpHtml; show('fatal'); }
+function josa(name, a, b) { const c = name.charCodeAt(name.length - 1); if (c < 0xAC00 || c > 0xD7A3) return name + b; return name + ((c - 0xAC00) % 28 ? a : b); }
+
+/* =================== supabase =================== */
+if (!window.supabase) { fatal('필요한 파일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.'); return; }
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'couple-pet-auth' } });
+let uid = null, me = null, couple = null, partner = null, partnerOnline = false;
+let coupleChannel = null, roomChannel = null;
+
+async function boot() {
+  show('loading');
+  let { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    const { data, error } = await sb.auth.signInAnonymously();
+    if (error) {
+      fatal('서버에 접속하지 못했어요: ' + error.message,
+        /anonymous/i.test(error.message) ? '<p class="help">Supabase에서 익명 로그인을 켜야 해요.<ol><li>Supabase 대시보드 → Authentication → Sign In / Providers</li><li><b>Allow anonymous sign-ins</b> 켜기 → Save</li></ol></p>' : '');
+      return;
+    }
+    session = data.session;
+  }
+  uid = session.user.id;
+  const { data: prof, error } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+  if (error) { fatal('서버 데이터를 읽지 못했어요: ' + error.message, /relation|does not exist|permission/i.test(error.message) ? '<p class="help">Supabase SQL Editor에서 <b>001_init.sql</b>을 먼저 실행해 주세요.</p>' : ''); return; }
+  me = prof;
+  if (!me) { showSetup(); return; }
+  await loadCouple();
+}
+
+/* setup */
+let pickedPet = 'mongle';
+const setupPicker = buildPicker('petPick', id => { pickedPet = id; }); pickers.push(setupPicker); setupPicker.set(pickedPet);
+function showSetup() { show('setup'); $('nick').focus(); }
+$('setupForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nickname = $('nick').value.trim(); if (!nickname) { $('setupMsg').textContent = '이름을 적어 주세요.'; return; }
+  $('setupMsg').textContent = '';
+  const btn = $('setupForm').querySelector('button[type=submit]'); btn.disabled = true;
+  const save = async () => {
+    /* make sure this device really has a login before saving (in-app browsers and private tabs can lose it) */
+    let { data: { session } } = await sb.auth.getSession();
+    if (!session) { const r = await sb.auth.signInAnonymously(); if (r.error) return { error: r.error }; session = r.data.session; }
+    uid = session.user.id;
+    const ins = await sb.from('profiles').insert({ id: uid, nickname, pet: pickedPet }).select().single();
+    if (ins.error && (ins.error.code === '23505' || /duplicate/i.test(ins.error.message)))
+      return sb.from('profiles').update({ nickname, pet: pickedPet }).eq('id', uid).select().single();
+    return ins;
+  };
+  let { data, error } = await save();
+  if (error && /JWT|row-level|security|session|401|403/i.test(error.message + ' ' + (error.code || ''))) {
+    await sb.auth.signOut().catch(() => {});
+    ({ data, error } = await save());
+  }
+  btn.disabled = false;
+  if (error) {
+    const m = /rate limit/i.test(error.message) ? '잠시 후 다시 눌러 주세요 (접속이 많아요)'
+      : /Failed to fetch|NetworkError|network/i.test(error.message) ? '인터넷 연결을 확인하고 다시 눌러 주세요'
+      : '저장하지 못했어요: ' + error.message;
+    $('setupMsg').textContent = m; return;
+  }
+  me = data; await loadCouple();
+});
+
+/* pairing */
+async function loadCouple() {
+  const { data, error } = await sb.from('couples').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) { fatal('짝 정보를 읽지 못했어요: ' + error.message); return; }
+  couple = data;
+  if (couple && couple.member_b) { await enterRoom(); return; }
+  show('pair');
+  $('codeBox').hidden = !couple; $('pairCreate').hidden = !!couple;
+  if (couple) { $('codeText').textContent = couple.code; watchCouple(); startPairPoll(); }
+}
+/* backup for the realtime notice: check every 4 s while waiting for the partner */
+let pairPoll = 0;
+function startPairPoll() {
+  clearInterval(pairPoll);
+  pairPoll = setInterval(async () => {
+    if ($('pair').hidden || !couple) { clearInterval(pairPoll); return; }
+    const { data } = await sb.from('couples').select('member_b').eq('id', couple.id).maybeSingle();
+    if (data && data.member_b) { clearInterval(pairPoll); loadCouple(); }
+  }, 4000);
+}
+$('pairGroups').onclick = () => { if (!pets.me) pets.me = makePet('me', me.pet, W * .4, uid); openRooms(); };
+$('makeCode').onclick = async () => {
+  $('pairMsg').textContent = '';
+  const { data, error } = await sb.rpc('create_couple');
+  if (error) { $('pairMsg').textContent = '코드를 만들지 못했어요: ' + error.message; $('pairMsg').className = 'msg err'; return; }
+  await loadCouple();
+};
+$('copyCode').onclick = async () => {
+  const text = couple.code;
+  try { await navigator.clipboard.writeText(text); toast(`코드 ${couple.code}를 복사했어요`); } catch (e) { toast('코드를 길게 눌러 복사해 주세요.'); }
+};
+$('joinCode').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6); });
+$('joinForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const code = $('joinCode').value.trim().toUpperCase();
+  if (code.length !== 6) { $('pairMsg').textContent = '코드 6자리를 입력해 주세요.'; $('pairMsg').className = 'msg err'; return; }
+  const { error } = await sb.rpc('join_couple', { invite: code });
+  if (error) {
+    const m = /invalid code/.test(error.message) ? '코드가 맞지 않거나 이미 쓰인 코드예요. 다시 확인해 주세요.' : /already paired/.test(error.message) ? '이미 짝이 있어요. 설정에서 짝을 끊은 뒤 다시 해 주세요.' : '연결하지 못했어요: ' + error.message;
+    $('pairMsg').textContent = m; $('pairMsg').className = 'msg err'; return;
+  }
+  await loadCouple();
+});
+function watchCouple() {
+  if (coupleChannel) sb.removeChannel(coupleChannel);
+  coupleChannel = sb.channel('couple-row-' + couple.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'couples', filter: `id=eq.${couple.id}` }, payload => {
+      if (payload.eventType === 'DELETE') { toast('짝이 끊어졌어요.'); leaveRoom(); loadCouple(); return; }
+      const wasPaired = couple && couple.member_b; couple = payload.new;
+      if (!wasPaired && couple.member_b) { enterRoom(); return; }
+      renderDday(true);
+    }).subscribe();
+}
+
+/* room */
+async function enterRoom() {
+  clearInterval(pairPoll);
+  if (pets.me) return;
+  const pid = couple.member_a === uid ? couple.member_b : couple.member_a;
+  const { data: pp } = await sb.from('profiles').select('*').eq('id', pid).maybeSingle();
+  partner = pp || { id: pid, nickname: '짝꿍', pet: 'chapssal' };
+  pets.me = makePet('me', me.pet, W * .32, uid); pets.partner = makePet('partner', partner.pet, W * .68, partner.id);
+  show(null); renderWho(); renderDday(false); watchCouple(); joinRoomChannel(); await catchUp();
+  let seenHelp = false; try { seenHelp = !!localStorage.getItem('uripet-help-seen'); localStorage.setItem('uripet-help-seen', '1'); } catch (e) {}
+  if (!seenHelp) setTimeout(startTour, 1200);
+  if (!DESKTOP && !IS_PC) setTimeout(prepareLoop, 4000);
+  loadRoom();
+  startCoins();
+  loadFocus(); loadPlans().then(checkPlanAlerts);
+  try { const last = localStorage.getItem('uripet-room'); if (last && last !== 'c') setTimeout(() => enterGroup(last), 600); } catch (e) {}
+}
+function leaveRoom() { if (roomChannel) { sb.removeChannel(roomChannel); roomChannel = null; } pets.me = pets.partner = null; partner = null; scene = null; }
+function renderWho() {
+  if (mode === 'group' && group) { const on = (pets.others || []).filter(p => p.online).length; $('whoText').textContent = `${group.name} · ${on + 1}/${group.people.length}명 접속`; $('dot').classList.toggle('on', on > 0); return; }
+  $('whoText').textContent = partner ? `${partner.nickname} · ${partnerOnline ? '접속 중' : '자리 비움'}` : '';
+  $('dot').classList.toggle('on', partnerOnline);
+}
+function joinRoomChannel() {
+  if (roomChannel) sb.removeChannel(roomChannel);
+  roomChannel = sb.channel('room-' + couple.id, { config: { presence: { key: uid }, broadcast: { self: false } } });
+  roomChannel
+    .on('broadcast', { event: 'move' }, ({ payload }) => applyRemoteMove(payload))
+    .on('broadcast', { event: 'toss' }, ({ payload }) => applyRemoteToss(payload))
+    .on('broadcast', { event: 'ride' }, ({ payload }) => applyRemoteRide(payload))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'todos', filter: `couple_id=eq.${couple.id}` }, p => onTodoChange(p, 'c'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'plans', filter: `couple_id=eq.${couple.id}` }, () => { if (mode === 'couple') { loadPlans().then(checkPlanAlerts); if (!$('planDlg').hidden) renderPlans(); } })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_items', filter: `couple_id=eq.${couple.id}` }, ({ new: it }) => { if (!CI().some(i => i.id === it.id)) CI().push(it); if (it.placed_by !== uid && pets.partner) say(pets.partner, `${DECOR[it.item] ? DECOR[it.item].name : '가구'} 놨어!`, 3); })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'room_items', filter: `couple_id=eq.${couple.id}` }, ({ new: it }) => { const i = CI().find(x => x.id === it.id); if (i && !(decorDrag && decorDrag.it === i)) i.x = it.x; })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'room_items' }, ({ old }) => { coupleSet(CI().filter(i => i.id !== old.id)); })
+    .on('presence', { event: 'sync' }, () => {
+      const state = roomChannel.presenceState();
+      const was = partnerOnline; partnerOnline = !!state[partner.id];
+      const info = state[partner.id] && state[partner.id][0];
+      if (info) {
+        if (info.nickname && info.nickname !== partner.nickname) partner.nickname = info.nickname;
+        if (info.pet && info.pet !== partner.pet) { partner.pet = info.pet; if (pets.partner) pets.partner.kind = info.pet; }
+      }
+      if (!was && partnerOnline && pets.partner) { say(pets.partner, '왔어!', 2.5); jump(pets.partner, 300); }
+      renderWho();
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events', filter: `couple_id=eq.${couple.id}` }, payload => {
+      const ev = payload.new; if (ev.sender === uid) return;
+      setLastSeen(ev.created_at); receive(ev.kind, ev.payload, ev.created_at);
+    })
+    .subscribe(async status => { if (status === 'SUBSCRIBED') await roomChannel.track({ nickname: me.nickname, pet: me.pet, at: Date.now() }); });
+}
+function receive(kind, payload, at) {
+  if (!pets.partner) { if (partner) toast(`짝꿍방: ${josa(partner.nickname, '이', '가')} ${({ kiss: '뽀뽀했어요', poke: '콕 찔렀어요', msg: '메시지를 보냈어요', doodle: '쪽지를 보냈어요', poop: '같이 똥 싸재요', lunch: '점심 먹재요' })[kind] || '뭔가 보냈어요'}`, 4); return; }
+  const who = josa(partner.nickname, '이', '가');
+  if (kind === 'lunch' && payload && payload.menu) { say(pets.partner, `${payload.menu} 같이 먹자!`, 6); jump(pets.partner, 300); toast(`${who} 점심으로 ${payload.menu} 먹재요`, 4); }
+  else if (kind === 'doodle' && payload && payload.img) { notes.push({ img: payload.img, at: at || new Date().toISOString() }); say(pets.partner, '쪽지 왔어! 나를 눌러 봐', 6); jump(pets.partner, 320); toast(`${who} 낙서 쪽지를 보냈어요`, 4); }
+  else if (kind === 'focus') { onFocusEvent(payload, partner.id, who); }
+  else if (kind === 'poop') { doPoop(pets.partner, 0, null); doPoop(pets.me, 1000, '나도 같이!'); toast(`${who} 같이 똥 싸재요`, 3.5); }
+  else if (kind === 'msg' && payload && payload.text) { say(pets.partner, shortText(payload.text), 8); jump(pets.partner, 300); toast(`${partner.nickname}: ${shortText(payload.text, 40)}`, 5); appendMsg(payload.text, false, at || new Date().toISOString()); }
+  if (kind === 'kiss') { startKiss(); toast(`${josa(partner.nickname, '이', '가')} 뽀뽀했어요`); }
+  else if (kind === 'poke') { jump(pets.partner, 380); pets.partner.react = now() + 2; say(pets.partner, `${josa(partner.nickname, '이', '가')} 보고 싶대!`, 4); spawnHearts(pets.partner.x, groundY() - HEIGHT[pets.partner.kind] * SC, 4, false); }
+  if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
+}
+let sending = false;
+async function sendEvent(kind, payload = null) {
+  if (!couple || sending) return false;
+  if (scene && kind === 'kiss') return false;
+  sending = true; setTimeout(() => { sending = false; }, 900);
+  if (kind === 'kiss') startKiss();
+  else if (kind === 'poke') { jump(pets.me, 300); say(pets.me, '콕!', 1.6); }
+  else if (kind === 'poop') { doPoop(pets.me, 0, null); doPoop(pets.partner, 1000, '같이 싸자!'); }
+  else if (kind === 'lunch') { say(pets.me, `${payload.menu} 먹자고 했어!`, 3); jump(pets.me, 280); }
+  else if (kind === 'doodle') { say(pets.me, '쪽지 보냈어!', 2.5); jump(pets.me, 280); }
+  else if (kind === 'msg') { say(pets.me, shortText(payload.text), 5); }
+  const row = { couple_id: couple.id, sender: uid, kind }; if (payload) row.payload = payload;
+  const { error } = await sb.from('events').insert(row);
+  if (error) {
+    toast(/kind_check|payload|column|msg_len/.test(error.message) ? (kind === 'msg' ? '서버 업데이트가 필요해요 (003_messages.sql 실행)' : '서버 업데이트가 필요해요 (002_more_events.sql 실행)') : '보내지 못했어요: ' + error.message, 5);
+    return false;
+  }
+  if (!partnerOnline) toast('짝꿍이 앱을 열면 전해져요');
+  return true;
+}
+function doPoop(p, delay, line) {
+  if (!p) return;
+  setTimeout(() => {
+    if (line) say(p, line, 1.4);
+    setTimeout(() => {
+      p.squat = now() + 1.5; p.state = 'idle'; p.until = now() + 4; say(p, '끙…', 1.4);
+      setTimeout(() => {
+        poops.push({ x: Math.max(20, Math.min(W - 20, p.x - p.dir * 40 * SC)), born: now() });
+        if (poops.length > 12) poops.shift();
+        p.react = now() + 1.6; say(p, '시원하다!', 2); jump(p, 220);
+      }, 1500);
+    }, line ? 700 : 0);
+  }, delay);
+}
+$('kissBtn').onclick = () => sendEvent('kiss');
+$('pokeBtn').onclick = () => mode === 'group' ? pickFriend('누구를 콕 찌를까요?', f => gSend('poke', f.owner)) : sendEvent('poke');
+$('poopBtn').onclick = () => mode === 'group' ? gSend('poop') : sendEvent('poop');
+$('doodleBtn').onclick = () => openDoodle();
+$('msgBtn').onclick = () => openMessages();
+$('moreBtn').onclick = e => { e.stopPropagation(); $('more').hidden = !$('more').hidden; };
+document.addEventListener('click', e => { if (!$('more').hidden && !$('more').contains(e.target) && e.target !== $('moreBtn')) $('more').hidden = true; });
+$('lunchBtn').onclick = () => { $('more').hidden = true; if (mode === 'group') openVote(); else openLunch(); };
+const INSTALLER = 'https://github.com/YeweonJung/uripet/releases/download/v0.1.0/UriPet-Setup-0.1.0.exe';
+function openInstall() {
+  if (DESKTOP) { toast('이미 PC 앱으로 쓰고 있어요'); return; }
+  const isWin = /Windows/i.test(navigator.userAgent);
+  if (isWin) { location.href = INSTALLER; toast('설치 파일을 내려받는 중이에요. 받은 파일을 열면 설치돼요', 5); }
+  else toast('PC 앱은 Windows에서 설치할 수 있어요. PC에서 yeweonjung.github.io/uripet 에 들어가 주세요', 5);
+}
+function openHelp() { $('more').hidden = true; $('helpInstall').hidden = DESKTOP; $('helpDlg').hidden = false; }
+$('installBtn').onclick = () => { $('more').hidden = true; openInstall(); };
+$('helpBtn').onclick = openHelp;
+$('roomsBtn').onclick = openRooms;
+$('focusBtn').onclick = () => { $('more').hidden = true; openFocus(); };
+$('todoBtn').onclick = () => { $('more').hidden = true; openTodos('todo'); };
+$('planBtn').onclick = () => { $('more').hidden = true; openPlans(); };
+$('tourBtn').onclick = () => { $('more').hidden = true; startTour(); };
+/* heart coins: daily check-in + online-time bonus, all counted on the server */
+function setCoins(n) { if (n == null) return; if (me) me.coins = n; $('coinTop').textContent = n; $('coinNum').textContent = n; }
+let coinTimer = 0;
+async function coinBeat() {
+  if (!me) return;
+  if (document.hidden && !DESKTOP) return;
+  const { data, error } = await sb.rpc('coin_heartbeat'); if (error || !data) return;
+  setCoins(data.coins);
+  if (data.got > 0) { toast(`앱을 켜 둔 지 ${Math.floor(data.minutes / 60)}시간! 하트 +${data.got}`, 4); if (pets.me) { say(pets.me, `하트 ${data.got}개 받았다!`, 2.5); spawnHearts(pets.me.x, groundY() - HEIGHT[pets.me.kind] * SC, 5, false); } }
+}
+async function startCoins() {
+  setCoins(me && me.coins != null ? me.coins : 0);
+  const { data, error } = await sb.rpc('claim_daily');
+  if (!error && data) {
+    setCoins(data.coins);
+    if (data.got > 0) setTimeout(() => { toast(`오늘 출석 완료! 하트 +${data.got}`, 4); if (pets.me) { say(pets.me, '출석 하트 받았어!', 2.5); jump(pets.me, 300); spawnHearts(pets.me.x, groundY() - HEIGHT[pets.me.kind] * SC, 6); } }, 1600);
+  }
+  clearInterval(coinTimer); coinBeat(); coinTimer = setInterval(coinBeat, 5 * 60 * 1000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) coinBeat(); });
+$('coinPill').onclick = () => openShop();
+async function loadRoom() {
+  const { data, error } = await sb.from('room_items').select('id, item, x, placed_by').eq('couple_id', couple.id).order('created_at');
+  if (!error && data) coupleSet(data);
+}
+function buildShop() {
+  $('coinNum').textContent = me && me.coins != null ? me.coins : 0;
+  for (const [boxId, free] of [['shopFree', true], ['shopPaid', false]]) {
+    const box = $(boxId); box.replaceChildren();
+    for (const [id, d] of Object.entries(DECOR)) {
+      if (!!d.locked === free) continue;
+      const el = document.createElement('div'); el.className = 'shop-item' + (d.locked ? ' locked' : '');
+      const c = document.createElement('canvas'); c.width = 192; c.height = 192;
+      g = c.getContext('2d'); const k = Math.min(170 / d.w, 170 / (d.hgt + 10)); g.translate(96, 184); g.scale(k, k); d.draw(1);
+      const name = document.createElement('b'); name.textContent = d.name;
+      const price = document.createElement('span'); price.className = 'price'; price.textContent = d.price ? `♥ ${d.price}` : '무료';
+      el.append(c, name, price);
+      if (d.season) { const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = d.season; el.append(tg); }
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (d.locked ? '' : ' primary');
+      b.textContent = d.locked ? '결제 준비 중' : '우리 방에 놓기'; b.disabled = !!d.locked;
+      if (!d.locked) b.onclick = () => placeItem(id);
+      el.append(b); box.append(el);
+    }
+  }
+}
+function openShop() { $('more').hidden = true; buildShop(); $('shopDlg').hidden = false; }
+async function placeItem(id) {
+  if (roomItems.length >= 16) { toast('가구는 16개까지 놓을 수 있어요'); return; }
+  const used = roomItems.map(i => i.x);
+  let x = .5; for (const c of [.5, .25, .75, .15, .85, .35, .65, .08, .92]) { if (!used.some(u => Math.abs(u - c) < .08)) { x = c; break; } }
+  const { data, error } = await sb.from(T().table).insert({ [T().fk]: T().id, item: id, x, placed_by: uid }).select('id, item, x, placed_by').single();
+  if (error) { toast(/room_items|relation|schema/.test(error.message) ? '서버 업데이트가 필요해요 (005_room.sql 실행)' : '놓지 못했어요: ' + error.message, 5); return; }
+  if (!roomItems.some(i => i.id === data.id)) roomItems.push(data);
+  $('shopDlg').hidden = true; setDecor(true);
+  if (pets.me) say(pets.me, `${DECOR[id].name}다!`, 2);
+}
+function setDecor(on) { decorMode = on; $('decorBar').hidden = !on; if (!on) decorDrag = null; }
+$('decorBtn').onclick = () => { $('more').hidden = true; if (!roomItems.length) openShop(); else setDecor(true); };
+$('decorShop').onclick = openShop;
+$('decorDone').onclick = () => setDecor(false);
+stage.addEventListener('pointerdown', e => {
+  if (!decorMode) return;
+  const hit = decorAt(e.clientX, e.clientY); if (!hit) return;
+  e.stopImmediatePropagation();
+  if (hit.remove) { roomItems = roomItems.filter(i => i !== hit.it); sb.from(T().table).delete().eq('id', hit.it.id).then(({ error }) => { if (error) toast('치우지 못했어요: ' + error.message); }); for (const q of [pets.me, pets.partner]) if (q && q.anchor && q.anchor.itemId === hit.it.id) dropOff(q); return; }
+  stage.setPointerCapture(e.pointerId); decorDrag = { it: hit.it, id: e.pointerId, ox: itemX(hit.it) - e.clientX };
+}, true);
+stage.addEventListener('pointermove', e => {
+  if (!decorDrag || e.pointerId !== decorDrag.id) return;
+  e.stopImmediatePropagation();
+  decorDrag.it.x = Math.max(.03, Math.min(.97, (e.clientX + decorDrag.ox) / W));
+}, true);
+const endDecorDrag = e => {
+  if (!decorDrag || e.pointerId !== decorDrag.id) return;
+  e.stopImmediatePropagation();
+  const it = decorDrag.it; decorDrag = null; suppressClick = true; setTimeout(() => { suppressClick = false; }, 50);
+  sb.from(T().table).update({ x: it.x }).eq('id', it.id).then(({ error }) => { if (error) toast('옮기지 못했어요: ' + error.message); });
+};
+stage.addEventListener('pointerup', endDecorDrag, true);
+stage.addEventListener('pointercancel', endDecorDrag, true);
+const SIZE_ORDER = ['xsmall', 'small', 'medium', 'large'], SIZE_LABEL = { xsmall: '아주 작게', small: '작게', medium: '보통', large: '크게' };
+function setSize(sz) { prefs.size = sz; savePrefs(); resize(); $('sizeBtn').textContent = `캐릭터 크기: ${SIZE_LABEL[sz]}`; if (pets.me) { say(pets.me, SIZE_LABEL[sz] + '!', 1.2); jump(pets.me, 200); } }
+$('sizeBtn').textContent = `캐릭터 크기: ${SIZE_LABEL[prefs.size] || '보통'}`;
+$('sizeBtn').onclick = e => { e.stopPropagation(); setSize(SIZE_ORDER[(SIZE_ORDER.indexOf(prefs.size) + 1) % SIZE_ORDER.length]); };
+$('helpInstall').onclick = openInstall;
+$('helpOk').onclick = () => { $('helpDlg').hidden = true; };
+if (DESKTOP) $('installBtn').hidden = true;
+$('fortuneBtn').onclick = () => { $('more').hidden = true; openFortune(); };
+
+/* =================== lunch =================== */
+const LUNCH = {
+  '한식': ['김치찌개', '된장찌개', '제육볶음', '비빔밥', '순두부찌개', '국밥', '불고기 백반', '냉면', '칼국수', '닭갈비'],
+  '중식': ['짜장면', '짬뽕', '마라탕', '볶음밥', '탕수육', '마파두부밥'],
+  '일식': ['돈카츠', '초밥', '라멘', '우동', '규동', '회덮밥'],
+  '양식': ['파스타', '햄버거', '샐러드', '리조또', '샌드위치', '피자'],
+  '분식': ['떡볶이', '김밥', '라볶이', '쫄면', '순대'],
+  '아시안': ['쌀국수', '카레', '팟타이', '포케', '분짜'],
+};
+let lunchCat = '전체', lunchPick = null;
+function rollLunch() {
+  const cats = lunchCat === '전체' ? Object.keys(LUNCH) : [lunchCat];
+  let c, m, guard = 0;
+  do { c = cats[Math.floor(Math.random() * cats.length)]; m = LUNCH[c][Math.floor(Math.random() * LUNCH[c].length)]; } while (lunchPick && m === lunchPick.menu && guard++ < 10);
+  lunchPick = { cat: c, menu: m };
+  $('lunchCat').textContent = c; $('lunchMenu').textContent = m;
+  if (pets.me) say(pets.me, `오늘은 ${m} 어때?`, 3.5);
+}
+(function buildLunchCats() {
+  const box = $('lunchCats');
+  ['전체', ...Object.keys(LUNCH)].forEach(c => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = c; b.setAttribute('aria-pressed', c === lunchCat);
+    b.onclick = () => { lunchCat = c; box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); rollLunch(); };
+    box.append(b);
+  });
+})();
+function openLunch() { rollLunch(); $('lunchDlg').hidden = false; }
+$('lunchAgain').onclick = rollLunch;
+$('lunchSend').onclick = async () => { if (lunchPick && await sendEvent('lunch', { menu: lunchPick.menu })) { $('lunchDlg').hidden = true; toast(`${lunchPick.menu} 먹자고 보냈어요`); } };
+
+/* =================== fortune =================== */
+const CARDS = [
+  ['햇살', '오래 미뤄 둔 일이 생각보다 쉽게 풀려요. 오전에 먼저 시작해 보세요.'],
+  ['구름 산책', '서두르지 않아도 괜찮은 날이에요. 천천히 가도 도착해요.'],
+  ['무지개', '작은 실수 뒤에 좋은 일이 따라와요. 너무 마음 쓰지 마세요.'],
+  ['별똥별', '문득 떠오른 생각을 메모해 두세요. 나중에 큰 도움이 돼요.'],
+  ['따뜻한 차', '오늘은 몸을 챙기는 게 운을 챙기는 거예요. 물 많이 마시기!'],
+  ['네잎클로버', '뜻밖의 칭찬이나 연락이 올 수 있어요.'],
+  ['종이비행기', '망설이던 메시지는 보내 보세요. 답이 좋게 와요.'],
+  ['보름달', '그동안 쌓은 노력이 눈에 보이는 날이에요.'],
+  ['작은 우산', '예상 못 한 일이 생겨도 금방 지나가요. 준비해 둔 게 빛을 봐요.'],
+  ['나침반', '선택이 고민될 땐 처음 마음을 따라가세요.'],
+  ['솜사탕', '달달한 간식이 기분을 확 바꿔 줘요.'],
+  ['열쇠', '막혀 있던 문제의 실마리를 찾게 돼요.'],
+  ['해바라기', '먼저 웃어 주면 하루가 환해져요.'],
+  ['편지', '오랜만에 안부를 전하면 좋은 소식이 돌아와요.'],
+  ['고양이 낮잠', '잠깐 쉬어 가는 게 오히려 일을 빨리 끝내 줘요.'],
+  ['반짝이는 조약돌', '평범한 하루 속에 작은 행운이 숨어 있어요.'],
+  ['두 개의 컵', '둘이 함께하면 뭐든 두 배로 즐거워요.'],
+  ['새싹', '새로 시작하기 좋은 날이에요. 작게라도 첫걸음을 떼세요.'],
+  ['노을', '하루를 잘 마무리하면 내일이 가벼워져요.'],
+  ['풍선', '마음이 가벼워지는 일이 생겨요. 너무 꽉 붙잡지 마세요.'],
+];
+const LUCKY_COLORS = ['살구색', '하늘색', '연두색', '라벤더', '버터색', '민트색', '분홍색', '코랄색', '베이지', '하양'];
+function hashStr(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function todayKey() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+function todaysFortune() {
+  const h = hashStr(uid + todayKey()), c = CARDS[h % CARDS.length];
+  const t = hashStr((couple ? couple.id : uid) + todayKey());
+  return { day: todayKey(), name: c[0], msg: c[1], color: LUCKY_COLORS[(h >>> 8) % LUCKY_COLORS.length], num: 1 + ((h >>> 16) % 9), temp: 70 + (t % 30) };
+}
+function savedCards() { try { return JSON.parse(localStorage.getItem('uripet-cards') || '[]'); } catch (e) { return []; } }
+function openFortune() {
+  const f = todaysFortune(), d = new Date();
+  $('fDate').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일의 카드`;
+  $('fName').textContent = f.name; $('fMsg').textContent = f.msg; $('fColor').textContent = f.color; $('fNum').textContent = f.num; $('fTemp').textContent = f.temp + '℃';
+  const saved = savedCards().some(x => x.day === f.day);
+  $('fSave').textContent = saved ? '저장했어요' : '카드 저장'; $('fSave').disabled = saved;
+  $('fList').hidden = true; $('fortuneDlg').hidden = false;
+  if (pets.me) say(pets.me, `오늘의 카드는 ${f.name}!`, 3);
+}
+$('fSave').onclick = () => {
+  const f = todaysFortune(), list = savedCards().filter(x => x.day !== f.day); list.unshift(f);
+  try { localStorage.setItem('uripet-cards', JSON.stringify(list.slice(0, 60))); } catch (e) {}
+  $('fSave').textContent = '저장했어요'; $('fSave').disabled = true; toast('카드를 저장했어요');
+};
+$('fSaved').onclick = () => {
+  const box = $('fList'); box.replaceChildren();
+  const list = savedCards();
+  if (!list.length) { const p = document.createElement('p'); p.textContent = '아직 저장한 카드가 없어요.'; box.append(p); }
+  for (const c of list) { const row = document.createElement('div'); const b = document.createElement('b'); b.textContent = c.name; const s = document.createElement('span'); s.textContent = `${c.day} · ${c.msg}`; row.append(b, s); box.append(row); }
+  box.hidden = !box.hidden;
+};
+
+/* =================== doodle notes =================== */
+const pad = $('pad'), pctx = pad.getContext('2d');
+let penColor = '#2F2925', erasing = false, padDrawing = null;
+function clearPad() { pctx.fillStyle = '#FFFDF9'; pctx.fillRect(0, 0, pad.width, pad.height); }
+function openDoodle() { clearPad(); $('doodleDlg').hidden = false; }
+$('padTools').addEventListener('click', e => {
+  const b = e.target.closest('[data-c]'); if (!b) return;
+  erasing = b.dataset.c === 'eraser'; if (!erasing) penColor = b.dataset.c;
+  $('padTools').querySelectorAll('[data-c]').forEach(x => x.classList.toggle('on', x === b));
+});
+$('padClear').onclick = clearPad;
+function padPt(e) { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * pad.width / r.width, (e.clientY - r.top) * pad.height / r.height]; }
+pad.addEventListener('pointerdown', e => { pad.setPointerCapture(e.pointerId); padDrawing = padPt(e); dot(padDrawing); });
+pad.addEventListener('pointermove', e => {
+  if (!padDrawing) return; const pt = padPt(e);
+  pctx.strokeStyle = erasing ? '#FFFDF9' : penColor; pctx.lineWidth = erasing ? 34 : 7; pctx.lineCap = 'round'; pctx.lineJoin = 'round';
+  pctx.beginPath(); pctx.moveTo(...padDrawing); pctx.lineTo(...pt); pctx.stroke(); padDrawing = pt;
+});
+function dot(pt) { pctx.fillStyle = erasing ? '#FFFDF9' : penColor; pctx.beginPath(); pctx.arc(pt[0], pt[1], erasing ? 17 : 3.5, 0, TAU); pctx.fill(); }
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => pad.addEventListener(ev, () => { padDrawing = null; }));
+$('padSend').onclick = async () => {
+  const small = document.createElement('canvas'); small.width = 360; small.height = 260;
+  small.getContext('2d').drawImage(pad, 0, 0, 360, 260);
+  const img = small.toDataURL('image/png');
+  if (await (mode === 'group' ? gSend('doodle', null, { img }) : sendEvent('doodle', { img }))) { $('doodleDlg').hidden = true; toast('쪽지를 보냈어요'); }
+};
+let notes = [];
+/* =================== messages =================== */
+const shortText = (t, n = 22) => t.length > n ? t.slice(0, n) + '…' : t;
+function msgEl(text, mine, at, from) {
+  const d = document.createElement('div'); d.className = 'msg' + (mine ? ' mine' : '');
+  if (from && !mine) { const f = document.createElement('span'); f.className = 'from'; f.textContent = from; d.append(f); }
+  d.append(document.createTextNode(text)); const sm = document.createElement('small'); const dt = new Date(at);
+  sm.textContent = `${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`; d.append(sm); return d;
+}
+function appendMsg(text, mine, at, from) {
+  if ($('msgDlg').hidden) return;
+  const list = $('msgList'); const empty = list.querySelector('.empty'); if (empty) empty.remove();
+  list.append(msgEl(text, mine, at, from)); list.scrollTop = list.scrollHeight;
+}
+async function openMessages() {
+  if (mode === 'group') return openGroupChat();
+  $('msgTitle').textContent = partner ? `${josa(partner.nickname, '과', '와')}의 메시지` : '메시지';
+  const list = $('msgList'); list.replaceChildren(); $('msgDlg').hidden = false;
+  const { data, error } = await sb.from('events').select('sender, payload, created_at').eq('couple_id', couple.id).eq('kind', 'msg').order('created_at', { ascending: false }).limit(40);
+  list.replaceChildren();
+  if (error || !data || !data.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = error ? '서버 업데이트가 필요해요 (003_messages.sql 실행)' : '아직 주고받은 메시지가 없어요. 첫 한마디를 보내 보세요!'; list.append(p); }
+  else for (const m of data.reverse()) if (m.payload && m.payload.text) list.append(msgEl(m.payload.text, m.sender === uid, m.created_at));
+  list.scrollTop = list.scrollHeight;
+  setTimeout(() => $('msgText').focus(), 50);
+}
+$('msgForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = $('msgText').value.trim(); if (!text) return;
+  const btn = $('msgForm').querySelector('button'); btn.disabled = true;
+  sending = false;
+  const ok = await (mode === 'group' ? gSend('msg', null, { text }) : sendEvent('msg', { text }));
+  btn.disabled = false;
+  if (ok) { $('msgText').value = ''; appendMsg(text, true, new Date().toISOString()); }
+});
+function openNote() {
+  const n = notes.shift(); if (!n) { $('noteDlg').hidden = true; return; }
+  $('noteImg').src = n.img;
+  const d = new Date(n.at);
+  $('noteTitle').textContent = `${partner ? partner.nickname : '짝꿍'}의 쪽지`;
+  $('noteMeta').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}에 보냈어요`;
+  $('noteNext').hidden = !notes.length; $('noteNext').textContent = `다음 쪽지 (${notes.length})`;
+  $('noteDlg').hidden = false;
+}
+$('noteNext').onclick = openNote;
+
+/* things that arrived while the app was closed */
+const LS_KEY = () => 'couple-pet-last-seen-' + uid;
+function getLastSeen() { try { return localStorage.getItem(LS_KEY()); } catch (e) { return null; } }
+function setLastSeen(iso) { try { localStorage.setItem(LS_KEY(), iso); } catch (e) {} }
+async function catchUp() {
+  const since = getLastSeen() || new Date(Date.now() - 864e5).toISOString();
+  let { data, error } = await sb.from('events').select('kind, created_at, payload').eq('couple_id', couple.id).neq('sender', uid).gt('created_at', since).order('created_at', { ascending: true }).limit(200);
+  if (error) ({ data } = await sb.from('events').select('kind, created_at').eq('couple_id', couple.id).neq('sender', uid).gt('created_at', since).order('created_at', { ascending: true }).limit(200));
+  setLastSeen(new Date().toISOString());
+  if (!data || !data.length) return;
+  const count = k => data.filter(e => e.kind === k).length;
+  const kiss = count('kiss'), poke = count('poke'), doodle = count('doodle'), poop = count('poop'), msg = count('msg');
+  const lastMsg = data.filter(e => e.kind === 'msg' && e.payload).pop();
+  const lunch = data.filter(e => e.kind === 'lunch' && e.payload).pop();
+  for (const e of data) if (e.kind === 'doodle' && e.payload && e.payload.img) notes.push({ img: e.payload.img, at: e.created_at });
+  const parts = []; if (kiss) parts.push(`뽀뽀 ${kiss}번`); if (poke) parts.push(`콕 ${poke}번`); if (doodle) parts.push(`쪽지 ${doodle}장`); if (poop) parts.push(`똥 ${poop}번`); if (msg) parts.push(`메시지 ${msg}개`); if (lunch) parts.push(`점심 제안`);
+  if (!parts.length) return;
+  setTimeout(() => {
+    toast(`자리 비운 동안 ${josa(partner.nickname, '이', '가')} ${parts.join(', ')} 보냈어요`, 4.5);
+    if (kiss) startKiss(); else if (poke) receive('poke');
+    if (doodle && pets.partner) say(pets.partner, '쪽지 왔어! 나를 눌러 봐', 6);
+    if (lunch && !kiss) say(pets.partner, `${lunch.payload.menu} 같이 먹자!`, 5);
+    if (lastMsg) say(pets.partner, shortText(lastMsg.payload.text), 8);
+  }, 700);
+}
+
+/* D-day */
+function daysTogether(metOn) {
+  if (!metOn) return null;
+  const [y, m, d] = metOn.split('-').map(Number);
+  const start = Date.UTC(y, m - 1, d), t = new Date(), today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.floor((today - start) / 864e5) + 1;
+}
+function milestone(metOn, n) {
+  if (n <= 0) return null;
+  if (n % 100 === 0) return `오늘 ${n}일!`;
+  const [y, m, d] = metOn.split('-').map(Number), t = new Date();
+  if (t.getMonth() === m - 1 && t.getDate() === d && t.getFullYear() > y) return `오늘 ${t.getFullYear() - y}주년!`;
+  return null;
+}
+function renderDday(changed) {
+  const b = $('ddayBtn'), n = daysTogether(couple && couple.met_on);
+  if (n == null) { b.textContent = '처음 만난 날 정하기'; b.classList.add('unset'); return; }
+  b.classList.remove('unset');
+  b.textContent = n > 0 ? `D+${n}` : `D${n - 1}`;
+  if (DESKTOP && partner) window.desktop.setStatus(`${josa(partner.nickname, "과", "와")} 함께 · ${b.textContent}`);
+  b.setAttribute('aria-label', n > 0 ? `함께한 지 ${n}일째` : `만나기까지 ${1 - n}일`);
+  const ms = milestone(couple.met_on, n);
+  const key = 'couple-pet-party-' + couple.id + '-' + new Date().toDateString();
+  let seen = false; try { seen = !!localStorage.getItem(key); } catch (e) {}
+  if (ms && !seen && pets.me) { setTimeout(() => startParty(ms), 1200); try { localStorage.setItem(key, '1'); } catch (e) {} }
+  if (changed && n > 0) toast(`처음 만난 날이 바뀌었어요 · D+${n}`);
+}
+$('ddayBtn').onclick = () => { $('metOn2').value = couple.met_on || ''; $('ddayDlg').hidden = false; };
+$('ddayCancel').onclick = () => { $('ddayDlg').hidden = true; };
+$('ddayForm').addEventListener('submit', async e => {
+  e.preventDefault(); await saveMetOn($('metOn2').value); $('ddayDlg').hidden = true;
+});
+async function saveMetOn(v) {
+  if (!couple || !couple.member_b) return true;
+  if (!v || v === couple.met_on) return true;
+  const { error } = await sb.from('couples').update({ met_on: v }).eq('id', couple.id);
+  if (error) { toast('저장하지 못했어요: ' + error.message); return false; }
+  couple.met_on = v; renderDday(false); return true;
+}
+
+/* settings */
+let pickedPet2 = 'mongle';
+const setPicker = buildPicker('petPick2', id => { pickedPet2 = id; }); pickers.push(setPicker);
+$('menuBtn').onclick = () => {
+  pickedPet2 = me.pet; setPicker.set(me.pet); $('nick2').value = me.nickname; $('metOn').value = (couple && couple.met_on) || '';
+  sb.rpc('my_restore_code').then(({ data, error }) => { $('myRestore').textContent = error ? '서버 업데이트 필요' : (data.slice(0, 4) + '-' + data.slice(4)); });
+  $('talkLevel').value = String(prefs.talk); $('stillMode').checked = !!prefs.still; $('petSize').value = prefs.size;
+  $('setMsg').textContent = ''; $('leaveBox').hidden = false; $('leaveConfirm').hidden = true; $('settings').hidden = false;
+};
+$('setCancel').onclick = () => { $('settings').hidden = true; };
+$('settingsForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  prefs.talk = Number($('talkLevel').value); prefs.still = $('stillMode').checked; savePrefs(); setSize($('petSize').value);
+  if (prefs.still && pets.me) { pets.me.state = 'idle'; if (pets.partner) pets.partner.state = 'idle'; }
+  const nickname = $('nick2').value.trim(); if (!nickname) { $('setMsg').textContent = '이름을 적어 주세요.'; $('setMsg').className = 'msg err'; return; }
+  const { data, error } = await sb.from('profiles').update({ nickname, pet: pickedPet2 }).eq('id', uid).select().single();
+  if (error) { $('setMsg').textContent = '저장하지 못했어요: ' + error.message; $('setMsg').className = 'msg err'; return; }
+  me = data; if (pets.me) pets.me.kind = me.pet;
+  if (roomChannel) roomChannel.track({ nickname: me.nickname, pet: me.pet, at: Date.now() });
+  if (!(await saveMetOn($('metOn').value))) return;
+  $('settings').hidden = true; toast('저장했어요');
+});
+$('copyRestore').onclick = async () => { const c = $('myRestore').textContent; try { await navigator.clipboard.writeText(c); toast(`이어 쓰기 코드 ${c}를 복사했어요`); } catch (e) { toast('코드를 길게 눌러 복사해 주세요'); } };
+$('restoreCode').addEventListener('input', e => {
+  const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  e.target.value = raw.length > 4 ? raw.slice(0, 4) + '-' + raw.slice(4) : raw;
+});
+$('restoreOpen').onclick = () => { $('restoreBox').hidden = false; $('restoreCode').focus(); };
+$('restoreGo').onclick = async () => {
+  const code = $('restoreCode').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== 8) { $('setupMsg').textContent = '코드 8자리를 넣어 주세요.'; return; }
+  let { data: { session } } = await sb.auth.getSession();
+  if (!session) { const r = await sb.auth.signInAnonymously(); if (r.error) { $('setupMsg').textContent = '접속하지 못했어요: ' + r.error.message; return; } session = r.data.session; }
+  uid = session.user.id;
+  const { error } = await sb.rpc('restore_with_code', { code_in: code });
+  if (error) { $('setupMsg').textContent = /invalid code/.test(error.message) ? '코드가 맞지 않아요. 다시 확인해 주세요.' : /function|schema/.test(error.message) ? '서버 업데이트가 필요해요 (004_restore.sql 실행)' : '불러오지 못했어요: ' + error.message; return; }
+  const { data: prof } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+  me = prof; toast('예전 기록을 불러왔어요'); await loadCouple();
+};
+$('leaveBtn').onclick = () => { $('leaveBox').hidden = true; $('leaveConfirm').hidden = false; };
+$('leaveNo').onclick = () => { $('leaveBox').hidden = false; $('leaveConfirm').hidden = true; };
+$('leaveYes').onclick = async () => {
+  const { error } = await sb.rpc('leave_couple');
+  if (error) { toast('끊지 못했어요: ' + error.message); return; }
+  $('settings').hidden = true; leaveRoom(); couple = null; await loadCouple();
+};
+document.querySelectorAll('.scrim').forEach(s => s.addEventListener('click', e => { if (e.target === s) s.hidden = true; }));
+/* –: fold the open panel away for a while; the pill brings it back */
+let folded = null;
+document.querySelectorAll('.min-btn').forEach(b => b.addEventListener('click', () => {
+  const box = b.closest('.scrim') || b.closest('.center'); if (!box) return;
+  folded = box; box.hidden = true; $('restorePill').hidden = false;
+}));
+$('restorePill').onclick = () => { if (folded) folded.hidden = false; folded = null; $('restorePill').hidden = true; };
+/* X: dialogs just close; on the start screens (desktop app) X quits the app */
+document.querySelectorAll('.x-btn').forEach(b => b.addEventListener('click', () => {
+  const scrim = b.closest('.scrim');
+  if (scrim) { scrim.hidden = true; return; }
+  if (DESKTOP && window.desktop.quit) window.desktop.quit();
+  else b.closest('.center').hidden = true;
+}));
+document.addEventListener('visibilitychange', () => { if (!document.hidden && couple && couple.member_b) catchUp(); });
+
+/* =================== desktop overlay glue =================== */
+if (DESKTOP) {
+  let interactive = null;
+  const setInteractive = on => { if (on !== interactive) { interactive = on; window.desktop.setInteractive(on); } };
+  const panelOpen = () => ['loading', 'setup', 'pair', 'fatal'].some(id => !$(id).hidden) || [...document.querySelectorAll('.scrim')].some(s => !s.hidden) || !$('pop').hidden || !$('more').hidden || decorMode || !$('tour').hidden;
+  const check = (x, y, target) => setInteractive(!!drag || panelOpen() || (target && target !== stage && target.id !== 'room') || !!petAt(x, y));
+  document.addEventListener('mousemove', e => check(e.clientX, e.clientY, e.target), true);
+  setInterval(() => { if (panelOpen()) setInteractive(true); else if (interactive && !drag && !$('pop').matches(':hover') && !document.querySelector('.scrim:not([hidden])')) { /* re-evaluated on next mousemove */ } }, 300);
+  window.desktop.onCommand(cmd => {
+    if (cmd === 'kiss') sendEvent('kiss');
+    else if (cmd === 'poke') sendEvent('poke');
+    else if (cmd === 'poop') sendEvent('poop');
+    else if (cmd === 'doodle' && couple && couple.member_b) openDoodle();
+    else if (cmd === 'lunch' && couple && couple.member_b) openLunch();
+    else if (cmd === 'fortune' && couple && couple.member_b) openFortune();
+    else if (cmd === 'help') openHelp();
+    else if (cmd === 'rooms') openRooms();
+    else if (cmd === 'focus') openFocus();
+    else if (cmd === 'todo') openTodos('todo');
+    else if (cmd === 'plans') openPlans();
+    else if (cmd === 'tour') startTour();
+    else if (cmd === 'decor' && couple && couple.member_b) openShop();
+    else if (cmd === 'msg' && couple && couple.member_b) openMessages();
+    else if (cmd.startsWith('size:')) setSize(cmd.slice(5));
+    else if (cmd === 'settings' && couple && couple.member_b) $('menuBtn').onclick();
+    else if (cmd === 'dday' && couple && couple.member_b) $('ddayBtn').onclick();
+    setInteractive(panelOpen());
+  });
+  if (pets) window.desktop.setStatus('UriPet');
+}
+
+if (location.hash === '#demo') window.__uripet = { pets, groundY: () => groundY(), sc: () => SC, pip: () => { drawPip(); return pipCanvas.toDataURL('image/png'); } };
+
+boot().catch(e => fatal('예상하지 못한 문제가 생겼어요: ' + (e.message || e)));
+})();
+</script>
+</body>
+</html>
